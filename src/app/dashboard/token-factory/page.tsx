@@ -1,5 +1,9 @@
-import { ComingSoonStub } from "@/components/dashboard/ComingSoonStub";
+import { TokenFactoryClient } from "@/components/token-factory/TokenFactoryClient";
 
-export default function TokenFactoryPage() {
-  return <ComingSoonStub title="Token Factory" />;
+export default function TokenFactoryPage({
+  searchParams,
+}: {
+  searchParams: { prompt?: string };
+}) {
+  return <TokenFactoryClient initialPrompt={searchParams.prompt} />;
 }

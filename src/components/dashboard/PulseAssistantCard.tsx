@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Sparkles, Send } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { NeuralBrainGraphic } from "./NeuralBrainGraphic";
@@ -7,6 +9,18 @@ import { NeuralBrainGraphic } from "./NeuralBrainGraphic";
 const QUICK_CHIPS = ["Memecoin", "Utility Token", "Tax Token", "Fair Launch"];
 
 export function PulseAssistantCard() {
+  const router = useRouter();
+  const [prompt, setPrompt] = useState("");
+
+  function goToFactory(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      router.push("/dashboard/token-factory");
+      return;
+    }
+    router.push(`/dashboard/token-factory?prompt=${encodeURIComponent(trimmed)}`);
+  }
+
   return (
     <Card className="flex h-full flex-col justify-between">
       <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
@@ -26,6 +40,7 @@ export function PulseAssistantCard() {
             {QUICK_CHIPS.map((chip) => (
               <button
                 key={chip}
+                onClick={() => goToFactory(`Create a ${chip.toLowerCase()}`)}
                 className="rounded-full border border-neon bg-white/5 px-3 py-1 text-xs text-text-secondary transition-colors hover:border-accent-cyan hover:text-accent-cyan"
               >
                 {chip}
@@ -39,11 +54,17 @@ export function PulseAssistantCard() {
       <div className="mt-6 flex items-center gap-2 rounded-xl border border-neon bg-bg-card p-2">
         <input
           type="text"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") goToFactory(prompt);
+          }}
           placeholder="Create a memecoin called MoonDog, 1B supply, 2% buy tax, anti-bot..."
           className="flex-1 bg-transparent px-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
         />
         <button
           aria-label="Send prompt"
+          onClick={() => goToFactory(prompt)}
           className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-blue text-white transition-colors hover:bg-accent-blue-glow"
         >
           <Send size={16} />
