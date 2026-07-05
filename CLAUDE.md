@@ -66,19 +66,22 @@ EVM chains, non-custodial, Claude AI primary / GPT-4o failover, branded
      card, result with Plain English / Solidity tabs + copy. Dashboard
      PULSE bar routes typed prompt here via `?prompt=`.
 
-### PENDING ISSUE — live API test not yet completed
+### Live API test — PASSED (2026-07-06)
 
-The Token Factory is fully built and its UI states + failover chain are
-verified, but a real end-to-end generation has NOT succeeded yet: **both
-AI accounts are out of funds.** Anthropic key returns "credit balance too
-low"; OpenAI key returns "insufficient_quota". Both keys are valid and
-authenticate — they just have no credit. Keys are in `.env.local`
-(gitignored). **Next session, once the user has funded at least the
-Anthropic account, restart the dev server and run two live tests:**
-(1) a MoonDog memecoin prompt → expect a real ERC20 + summary;
-(2) the honeypot prompt ("only I can sell…") → expect a safety-filter
-rejection. Security note: the user pasted these keys into chat, so they
-should be rotated.
+The Token Factory is verified end-to-end against the real Anthropic API
+(Anthropic account funded; Claude primary handled both calls, no failover
+needed):
+- **MoonDog generation** → HTTP 200, ~60s, a complete OpenZeppelin v5
+  ERC20 (Ownable2Step, 2% buy-only tax hard-capped at 25%, anti-bot
+  cooldown capped at 30s, every owner power disclosed in warnings).
+  Rendered correctly in the UI: Plain English tab (summary + features +
+  "Before you deploy" warnings) and Solidity Code tab + copy button.
+- **Honeypot prompt** ("only I can sell…") → HTTP 422, rejected by the
+  safety filter with a clear plain-language reason.
+
+Still open: OpenAI fallback key is `insufficient_quota` (untested live —
+fund it to exercise the GPT-4o failover path for real). Security: the
+API keys were pasted into chat, so **rotate both** when convenient.
 
 ### Next steps (build order not yet done)
 
