@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   oscAr design tokens — palette is FINAL AND LOCKED.
+   Single source of truth; matches the reference dashboard image.
+   ============================================================ */
+:root {
+  /* Backgrounds */
+  --bg-primary: #050816;
+  --bg-secondary: #0a1025;
+  --bg-card: #0f172a;
+  --bg-sidebar: #081120;
+
+  /* Primary accent (blue/cyan) */
+  --accent-blue: #2563eb;
+  --accent-cyan: #00d4ff;
+  --accent-cyan-blue: #22d3ee;
+  --accent-blue-glow: #38bdf8;
+
+  /* Secondary accent (purple) */
+  --accent-purple: #7c3aed;
+  --accent-purple-neon: #9333ea;
+  --accent-purple-bright: #a855f7;
+
+  /* Status */
+  --status-green: #22c55e;
+  --status-green-bright: #00ff88;
+  --status-gold: #f59e0b;
+  --status-red: #ef4444;
+
+  /* Text */
+  --text-primary: #ffffff;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+
+  /* Effects */
+  --border-neon: rgba(0, 212, 255, 0.15);
+  --glass: rgba(255, 255, 255, 0.05);
+  --neon-glow: 0 0 20px rgba(0, 212, 255, 0.4);
+  --gradient-main: linear-gradient(135deg, #050816, #0a1025);
+}
+
+body {
+  color: var(--text-primary);
+  background: var(--gradient-main);
+  background-color: var(--bg-primary);
+  min-height: 100vh;
+  font-family: var(--font-exo2), system-ui, sans-serif;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-syne), system-ui, sans-serif;
+}
+
+code,
+pre,
+kbd {
+  font-family: var(--font-jetbrains-mono), monospace;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .glass-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-neon);
+    backdrop-filter: blur(12px);
+  }
+  .neon-glow {
+    box-shadow: var(--neon-glow);
+  }
+}
