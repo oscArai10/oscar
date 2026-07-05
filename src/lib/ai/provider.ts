@@ -56,7 +56,16 @@ function isAvailabilityError(err: unknown): boolean {
   if (err instanceof Anthropic.APIConnectionError) return true;
   if (err instanceof Anthropic.APIError) {
     const status = err.status;
-    return status === 401 || status === 429 || (status !== undefined && status >= 500);
+    if (status === 401 || status === 429 || (status !== undefined && status >= 500)) {
+      return true;
+    }
+    // Billing/credit exhaustion surfaces as a 400/403 but means Claude is
+    // persistently unusable — exactly what the fallback exists for.
+    const message = String((err as { message?: unknown }).message ?? "").toLowerCase();
+    if (message.includes("credit balance") || message.includes("billing")) {
+      return true;
+    }
+    return false;
   }
   return true; // timeouts / unknown transport errors
 }
