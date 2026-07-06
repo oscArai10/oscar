@@ -81,7 +81,34 @@ EVM chains, non-custodial, Claude AI primary / GPT-4o failover, branded
    chains + testnets via Alchemy, Etherscan V2 verify. zkSync deferred
    (needs zksolc). NOT yet deployed on-chain — owner runs the deploy
    scripts + funds gas, then records factory addresses in
-   `src/lib/chains/chains.ts` (factoryAddress).
+   `src/lib/chains/chains.ts` (factoryAddress). 23/23 tests now (2 bugs
+   found and fixed via the audit tool below — see step 7).
+7. **Slither audit service + audit pass** — built and live-tested.
+   `services/slither/` (separate FastAPI/Python microservice, Docker —
+   Slither can't run in Vercel functions): `POST /analyze` compiles with
+   pinned solc 0.8.24 + vendored OpenZeppelin v5, filters findings to only
+   the user's own contract file (drops OZ library noise). Internal API
+   key auth. `src/lib/audit/` calls it, then oscAr AI (new
+   `AUDIT_REVIEWER_SYSTEM` prompt) translates findings to plain language
+   and scores Security/Gas/Code Quality (0-100 each); overall score is a
+   deterministic 50/25/25 weighted average computed in code (not trusted
+   to the LLM), gate is ≥80. **Fails CLOSED** if the Slither service is
+   unreachable/unconfigured — blocks mainnet rather than skipping the
+   audit, since this is a security gate. Wired into the Token Factory UI
+   as a real "Run Security Audit" action (score rings + findings list +
+   gate banner).
+   Running this for real against `OscarERC20.sol` caught two genuine bugs
+   the 20 passing contract tests had missed: the advertised anti-bot
+   window was never enforced in `_update`, and the 0.1% anti-lock floor
+   applied to the owner setter but not to construction. Both fixed with
+   new regression tests (23/23 passing) — see the contract layer entry
+   above.
+   Open item: **the Slither service itself isn't deployed anywhere yet.**
+   Owner needs to deploy `services/slither/` to Railway or Fly.io (see
+   its README) and paste `SLITHER_SERVICE_URL` /
+   `SLITHER_SERVICE_API_KEY` into `.env.local`. Until then the audit
+   button correctly shows "unavailable, mainnet blocked" (verified live
+   in the browser).
 
 ### Live API test — PASSED (2026-07-06)
 
@@ -133,19 +160,17 @@ redirect URL for email confirmation / magic links to land back in-app.
 
 ### Next steps (build order not yet done)
 
-**IMMEDIATE NEXT STEP → Slither audit microservice + audit pass.** Contract
-layer is done (step 6). Next in the build order is the automated security
-audit: a Dockerized Slither microservice (Railway/Fly.io) exposing one
-internal API (POST contract code → Slither JSON findings), called
-server-side from the app with an internal API key; then the audit pass
-that combines Slither + AI review into the four scores (Security / Gas /
-Code Quality + overall) with the ≥80 gate that blocks mainnet. Slither is
-Python and CANNOT run in Vercel functions — it MUST be the separate
-service.
-Alternatives the user may prefer first: (a) wire the dashboard to real
-Supabase data, or (b) the end-to-end deploy flow (testnet → RainbowKit
-mainnet via the factory → explorer verify → token page) — though the
-deploy flow ideally comes after the audit gate. Confirm with the user.
+**IMMEDIATE NEXT STEP → Full end-to-end deploy flow.** Steps 6 (contracts)
+and 7 (audit) are both done. Next in the build order: testnet deploy via
+RainbowKit (user's wallet calls the factory contract on a testnet — but
+NOTE the factory isn't deployed on any chain yet, see step 6's open item,
+so this needs the owner to deploy at least one testnet factory first),
+then mainnet deploy gated on the audit's `passesGate` (≥80), then explorer
+verification and an auto-generated token page. Wire this into the Token
+Factory UI after the audit section.
+Alternative the user may prefer first: wire the dashboard to real
+Supabase data (currently placeholder). Confirm with the user before
+starting.
 
 Deferred / later:
 
@@ -154,8 +179,9 @@ Deferred / later:
 - Owner deploys the factory contracts on-chain (runs
   `contracts/scripts/deploy-factory.ts` per chain, funds gas) and records
   each address in `src/lib/chains/chains.ts`. zkSync via zksolc separately.
-- Slither audit microservice (Dockerized, Railway/Fly.io), then the audit
-  pass + scores (≥80 gate for mainnet).
+- Owner deploys `services/slither/` to Railway/Fly.io and pastes
+  `SLITHER_SERVICE_URL`/`SLITHER_SERVICE_API_KEY` into `.env.local` (audit
+  pipeline is already built and wired in — see step 7).
 - Full end-to-end deploy flow (testnet → RainbowKit mainnet via factory →
   explorer verify → token page).
 - Wire dashboard to real data; Memecoin Factory; full landing page;
