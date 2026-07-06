@@ -129,6 +129,51 @@ EVM chains, non-custodial, Claude AI primary / GPT-4o failover, branded
    Avg Security Score 100 (1 audit), real score-breakdown rings, and the
    activity feed entry with correct relative time. Deleted the test user
    and confirmed the audit row cascade-deleted with it.
+9. **End-to-end deploy flow** — built; on-chain testing blocked on the
+   owner (see below). Fixed a real architecture gap first: the audited
+   `OscarTokenFactory` (step 6) only ever deploys the fixed `OscarERC20`
+   template via a `TokenConfig` struct — never arbitrary AI bytecode, by
+   design — but the generator only produced prose Solidity with nothing
+   structured to call the factory with, and its prompt still offered
+   blacklist/vesting that the template doesn't implement (a real
+   "promises an undeployable feature" bug). Fixed both: `deploy_config`
+   (structured, `TokenConfig`-shaped) added to `GENERATED_CONTRACT_SCHEMA`,
+   and `GENERATOR_SYSTEM` rewritten to only offer what's actually
+   deployable, now explicitly disclosing unsupported requests instead of
+   silently promising them. Verified live: a real generation produced
+   `deploy_config` exactly matching the request (3%/4% tax → 300/400 bps,
+   2% max wallet computed correctly), with the AI correctly noting
+   "reflections, blacklists, vesting... not available."
+   New: `src/lib/contracts/` (ABIs extracted from Hardhat artifacts,
+   `deployConfig.ts` for TokenConfig conversion + client-side pre-validation
+   mirroring the contract's own revert conditions, `useDeployToken.ts`
+   wagmi hooks, a pre-flattened `OscarERC20.flattened.sol` for reuse across
+   every verification since it's always the same contract). `chains.ts`
+   split `factoryAddress` into separate mainnet/testnet fields (different
+   contracts on different networks). `DeploySection.tsx` in Token Factory:
+   chain selector, fee display, wallet connect, mainnet lock banner tied to
+   the audit's `passesGate`. `/api/deployments` persists confirmed deploys.
+   `/api/verify-contract` submits to Etherscan V2, deriving constructor
+   args from the real on-chain `deployToken()` transaction rather than
+   trusting the client. `/token/[chain]/[address]` is the public token
+   page (deliberately uses the service-role client for this one narrow
+   public read — a contract's address/chain/audit score are already public
+   on-chain).
+   Verified everything checkable without a live chain: contract suite
+   still 23/23, production build clean, Deploy UI correctly shows "no
+   chains are live yet" (true today), and the token page renders real data
+   end-to-end (95/100 score, correct chain/date/explorer link) via a
+   manually-inserted deployment row, 404s correctly for an unknown address
+   — both proven against the real Supabase project with cascade delete
+   confirmed on cleanup.
+   **Open items (hard blockers, not skippable):** (1) no factory is
+   deployed on any chain yet — needs the owner to fund a deployer wallet
+   and run `contracts/scripts/deploy-factory.ts` (the private key must
+   never be pasted into this chat); (2) `ALCHEMY_API_KEY` and
+   `ETHERSCAN_API_KEY` aren't set in `.env.local` yet. Until both, no real
+   `deployToken()` call or Etherscan submission has ever actually run —
+   only build/type-check and the parts provably testable via Supabase
+   directly.
 
 ### Live API test — PASSED (2026-07-06)
 
@@ -180,34 +225,34 @@ redirect URL for email confirmation / magic links to land back in-app.
 
 ### Next steps (build order not yet done)
 
-**IMMEDIATE NEXT STEP → Full end-to-end deploy flow.** Steps 6 (contracts),
-7 (audit), and 8 (dashboard data) are all done. Next in the build order:
-testnet deploy via RainbowKit (user's wallet calls the factory contract on
-a testnet — but NOTE the factory isn't deployed on any chain yet, see step
-6's open item, so this needs the owner to deploy at least one testnet
-factory first), then mainnet deploy gated on the audit's `passesGate`
-(≥80), then explorer verification and an auto-generated token page. Wire
-this into the Token Factory UI after the audit section. Each real deploy
-should insert a row into the `deployments` table (schema already exists
-from step 8) so the dashboard picks it up immediately with no further
-wiring needed.
+**IMMEDIATE NEXT STEP → owner actions, then continue the build.** Every
+step through the deploy flow (9) is now built. What's left is almost
+entirely OWNER-SIDE, not more code:
+1. Deploy the oscAr Factory Contract on at least one testnet (owner runs
+   `contracts/scripts/deploy-factory.ts` with a funded wallet — the
+   private key lives ONLY in `contracts/.env`, never in this chat) and
+   record the address in `src/lib/chains/chains.ts`
+   (`testnetFactoryAddress`). This is the ONLY thing standing between the
+   deploy flow and a real, live-tested `deployToken()` transaction.
+2. Paste `ALCHEMY_API_KEY` and `ETHERSCAN_API_KEY` into `.env.local` so
+   `/api/verify-contract` can actually run.
+3. Deploy `services/slither/` (step 7's open item) if not already done.
+Once (1) is done, the very next session should do a real testnet deploy
+end-to-end and verify it live — that's the first thing genuinely worth
+building further on top of.
+After that, remaining build-order work: Memecoin Factory, full landing
+page, badges, Paddle/Lemon Squeezy Pro, oscAr CORE (triple-layer auth) +
+SENTINEL, PWA finalization, security hardening pass. Confirm with the
+user which to pick up first.
 
 Deferred / later:
 
 - 2FA (authenticator app) + login history / device management (deferred
   slice of the auth step).
-- Owner deploys the factory contracts on-chain (runs
-  `contracts/scripts/deploy-factory.ts` per chain, funds gas) and records
-  each address in `src/lib/chains/chains.ts`. zkSync via zksolc separately.
-- Owner deploys `services/slither/` to Railway/Fly.io and pastes
-  `SLITHER_SERVICE_URL`/`SLITHER_SERVICE_API_KEY` into `.env.local` (audit
-  pipeline is already built and wired in — see step 7).
-- Full end-to-end deploy flow (testnet → RainbowKit mainnet via factory →
-  explorer verify → token page).
 - Wire the Gas Price Widget to Alchemy (last placeholder on the
-  dashboard); Memecoin Factory; full landing page; badges; Paddle/Lemon
-  Squeezy Pro; oscAr CORE (triple-layer auth) + SENTINEL; PWA
-  finalization; security hardening pass.
+  dashboard).
+- zkSync factory deploy (needs zksolc, deferred separately from the 9
+  standard-EVM chains).
 
 ### Dev notes
 
