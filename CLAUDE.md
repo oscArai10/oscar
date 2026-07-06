@@ -225,25 +225,29 @@ redirect URL for email confirmation / magic links to land back in-app.
 
 ### Next steps (build order not yet done)
 
-**IMMEDIATE NEXT STEP → owner actions, then continue the build.** Every
-step through the deploy flow (9) is now built. What's left is almost
-entirely OWNER-SIDE, not more code:
-1. Deploy the oscAr Factory Contract on at least one testnet (owner runs
-   `contracts/scripts/deploy-factory.ts` with a funded wallet — the
-   private key lives ONLY in `contracts/.env`, never in this chat) and
-   record the address in `src/lib/chains/chains.ts`
-   (`testnetFactoryAddress`). This is the ONLY thing standing between the
-   deploy flow and a real, live-tested `deployToken()` transaction.
-2. Paste `ALCHEMY_API_KEY` and `ETHERSCAN_API_KEY` into `.env.local` so
-   `/api/verify-contract` can actually run.
-3. Deploy `services/slither/` (step 7's open item) if not already done.
-Once (1) is done, the very next session should do a real testnet deploy
-end-to-end and verify it live — that's the first thing genuinely worth
-building further on top of.
-After that, remaining build-order work: Memecoin Factory, full landing
-page, badges, Paddle/Lemon Squeezy Pro, oscAr CORE (triple-layer auth) +
-SENTINEL, PWA finalization, security hardening pass. Confirm with the
-user which to pick up first.
+**PAUSED HERE (2026-07-06) — waiting on the user's testnet factory deploy.**
+Every step through the deploy flow (9) is built and committed; nothing
+else is blocking on code. The user is now going to run
+`contracts/scripts/deploy-factory.ts` themselves against a testnet (funded
+wallet, private key stays in `contracts/.env`, never in chat).
+
+**When the session resumes, the very first thing to do:**
+1. Ask for (or read back) the deployed factory address + which testnet.
+2. Record it in `src/lib/chains/chains.ts` under that chain's
+   `testnetFactoryAddress`.
+3. Run a REAL testnet deploy end-to-end through the actual browser UI:
+   generate a token, run the audit, connect a wallet, deploy via
+   `DeploySection`, confirm the tx, confirm the row lands in `deployments`,
+   confirm the token page renders. This is the first genuinely live
+   `deployToken()` call of the whole project — treat it as a real
+   verification pass, not a formality.
+4. If `ALCHEMY_API_KEY` isn't set yet, note that `/api/verify-contract`
+   still can't run — ask whether to set it up now.
+
+Only after that live deploy is confirmed working should net-new feature
+work resume: Memecoin Factory, full landing page, badges, Paddle/Lemon
+Squeezy Pro, oscAr CORE + SENTINEL, PWA finalization, security hardening
+pass. Confirm with the user which to pick up first — don't assume.
 
 Deferred / later:
 
