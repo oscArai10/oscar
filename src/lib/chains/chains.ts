@@ -51,7 +51,7 @@ export const OSCAR_CHAINS: Record<string, OscarChain> = {
     alchemySlug: "base-mainnet",
     alchemyTestnetSlug: "base-sepolia",
     factoryAddress: null,
-    testnetFactoryAddress: null,
+    testnetFactoryAddress: "0x5A446b3ca84C962B487335be6d25B4527B01Aa3B",
   },
   bnb: {
     chain: bsc,

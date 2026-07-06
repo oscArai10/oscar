@@ -18,7 +18,7 @@ The permanent AI brain/orb graphic for oscAr is `public/oscar-brain.png`.
 
 ## Project status — resume here
 
-Last updated: 2026-07-06. Build order is being followed step by step; the
+Last updated: 2026-07-07. Build order is being followed step by step; the
 user approves each step before the next. Tech stack, scope, and design
 system are per the v1 master prompt (Next.js 14 + TS + Tailwind, PWA, 10
 EVM chains, non-custodial, Claude AI primary / GPT-4o failover, branded
@@ -225,32 +225,48 @@ redirect URL for email confirmation / magic links to land back in-app.
 
 ### Next steps (build order not yet done)
 
-**PAUSED HERE (2026-07-06) — `contracts/.env` is filled in; next is running
-the actual factory deploy.** Every step through the deploy flow (9) is
-built and committed; nothing else is blocking on code. The user has now
-filled in `contracts/.env` (`DEPLOYER_PRIVATE_KEY`, `ALCHEMY_API_KEY`,
-`FEE_WALLET_ADDRESS` — a funded testnet wallet, Base Sepolia recommended).
-That file is gitignored and was never seen in this chat — confirmed via
-`git status --short --ignored` showing it as ignored, not read directly.
+**PAUSED HERE (2026-07-07) — first LIVE testnet deploy PASSED end-to-end.
+Next: pick the first net-new feature with the user.**
 
-**When the session resumes, the very first thing to do:**
-1. Run the deploy: `npx hardhat run scripts/deploy-factory.ts --network
-   baseSepolia` (from `contracts/`) — or whichever testnet the user
-   actually funded, confirm which first if unclear.
-2. Take the printed factory address and record it in
-   `src/lib/chains/chains.ts` under that chain's `testnetFactoryAddress`.
-3. Run a REAL testnet deploy end-to-end through the actual browser UI:
-   generate a token, run the audit, connect a wallet, deploy via
-   `DeploySection`, confirm the tx, confirm the row lands in `deployments`,
-   confirm the token page renders. This is the first genuinely live
-   `deployToken()` call of the whole project — treat it as a real
-   verification pass, not a formality.
-4. `ALCHEMY_API_KEY` in the app's `.env.local` (separate from
-   `contracts/.env`) is still empty as of this note — `/api/verify-contract`
-   can't run until it's set there too. Ask whether to set it up now.
+The factory is live on **Base Sepolia** at
+`0x5A446b3ca84C962B487335be6d25B4527B01Aa3B` (recorded in
+`src/lib/chains/chains.ts` → `base.testnetFactoryAddress`). Deploy fee
+was lowered on-chain to **0.0001 ETH** via `setDeployFee` (testnet
+faucet-friendly; owner = deployer wallet `0x8404…3d31`, which is also
+the fee wallet on this testnet). Etherscan verification was deliberately
+skipped (user decision — `ETHERSCAN_API_KEY` left empty; the deploy
+script and `/api/verify-contract` both no-op gracefully without it).
 
-Only after that live deploy is confirmed working should net-new feature
-work resume: Memecoin Factory, full landing page, badges, Paddle/Lemon
+**Live end-to-end verification (2026-07-07), all confirmed:** the user
+generated "TestDog" (TDOG, 1B supply) in the real UI, connected MetaMask,
+and deployed through `DeploySection`. On-chain tx
+`0xcb175797…b58157` succeeded; the factory's own `TokenDeployed` event
+fired (token `0xa0E4b62C1fc036b65b4Fb69Dd69cb640Cb87A241`, owner = user
+wallet, 0.0001 ETH fee collected); owner holds the full 1B supply
+(non-custodial confirmed); the `deployments` row landed in Supabase; and
+`/token/base-testnet/0xa0E4…` renders correctly. Notable: MetaMask used
+an **EIP-7702 smart account** (type-4 tx via a relayer — tx `to` is a
+relay contract, NOT the factory), which worked fine for deploying but
+WILL break `/api/verify-contract`'s "decode tx.input as deployToken"
+logic once Etherscan/Alchemy keys are set — fix by reading the factory's
+`TokenDeployed` receipt log instead (a background task chip was spawned
+for this).
+
+**Security note:** the deployer private key for `0x8404…3d31` was pasted
+into chat (2026-07-07) — the user explicitly accepted this for
+testnet-only use. That wallet/key must NEVER be promoted to mainnet
+deployer; generate a fresh wallet (offline) when mainnet deploys happen.
+
+Open items before/alongside feature work:
+- `ALCHEMY_API_KEY` + `ETHERSCAN_API_KEY` in the app's `.env.local` are
+  still empty — `/api/verify-contract` returns `{status:"skipped"}` until
+  both are set (and needs the EIP-7702 fix above to work for
+  smart-account wallets).
+- WalletConnect projectId is still the placeholder — extension wallets
+  work (injected connector), mobile/QR wallets don't.
+
+The live deploy is confirmed working, so net-new feature work can now
+resume: Memecoin Factory, full landing page, badges, Paddle/Lemon
 Squeezy Pro, oscAr CORE + SENTINEL, PWA finalization, security hardening
 pass. Confirm with the user which to pick up first — don't assume.
 
