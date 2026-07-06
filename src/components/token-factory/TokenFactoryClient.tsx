@@ -17,7 +17,9 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { ProgressRing } from "@/components/ui/ProgressRing";
+import { DeploySection } from "./DeploySection";
 import { cn } from "@/lib/utils/cn";
+import type { DeployConfig } from "@/lib/ai/schemas";
 
 const QUICK_CHIPS: { label: string; prompt: string }[] = [
   {
@@ -50,6 +52,7 @@ interface GeneratedContract {
   summary: string;
   features: { name: string; description: string }[];
   warnings: string[];
+  deploy_config: DeployConfig;
 }
 
 type Phase =
@@ -496,6 +499,17 @@ export function TokenFactoryClient({ initialPrompt }: { initialPrompt?: string }
             )}
           </div>
         </Card>
+      )}
+
+      {phase.kind === "done" && (
+        <DeploySection
+          contractName={phase.contract.contract_name}
+          tokenName={phase.contract.token_name}
+          tokenSymbol={phase.contract.token_symbol}
+          deployConfig={phase.contract.deploy_config}
+          canDeployMainnet={audit.kind === "completed" && audit.passesGate}
+          auditOverallScore={audit.kind === "completed" ? audit.overallScore : null}
+        />
       )}
     </div>
   );
