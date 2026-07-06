@@ -38,8 +38,9 @@ EVM chains, non-custodial, Claude AI primary / GPT-4o failover, branded
    ActivityFeed), layout (`Sidebar` with nav + Coming Soon 🔒 +
    System Health, `Topbar`), and dashboard cards (WelcomeBanner,
    PulseAssistantCard with brain graphic, GasPriceWidget). Matches the
-   reference image; palette verified pixel-exact. Currently uses
-   PLACEHOLDER data — wire to Supabase/Alchemy in the dashboard step.
+   reference image; palette verified pixel-exact. **Now wired to real
+   Supabase data — see step 8.** Gas prices are still placeholder
+   (needs a separate Alchemy integration).
 3. **Landing page** — still the temporary shell in `src/app/page.tsx`
    (logo + tagline + real-stats-only line). NOT yet the full landing
    page (prompt bar, chips, features, pricing, footer). **Build this
@@ -109,6 +110,25 @@ EVM chains, non-custodial, Claude AI primary / GPT-4o failover, branded
    `SLITHER_SERVICE_API_KEY` into `.env.local`. Until then the audit
    button correctly shows "unavailable, mainnet blocked" (verified live
    in the browser).
+8. **Dashboard wired to real Supabase data** — built and live-tested.
+   `supabase/schema.sql` adds `deployments` and `audit_reports` tables
+   (same select-own-or-owner + insert-own RLS pattern as `profiles`).
+   `POST /api/audit` now persists a row per completed audit for the
+   signed-in user (best-effort, never breaks the audit response).
+   `src/lib/dashboard/data.ts` has the real queries (deploy counts, chains
+   used, avg security score + trend, latest audit breakdown, hourly
+   deployment-activity buckets, recent audit feed) — returns honest empty
+   states rather than fabricated numbers. `src/lib/supabase/profile.ts`
+   dedupes the profile fetch between layout and page via React `cache()`.
+   Gas Price Widget is the one card still on placeholder data (needs
+   Alchemy, a separate integration).
+   Verified live: ran the migration against the real project (confirmed
+   RLS actually blocks unauthenticated reads), signed in as a test user,
+   generated + audited a real contract (100/100), confirmed the row
+   landed in `audit_reports`, and confirmed the dashboard rendered it —
+   Avg Security Score 100 (1 audit), real score-breakdown rings, and the
+   activity feed entry with correct relative time. Deleted the test user
+   and confirmed the audit row cascade-deleted with it.
 
 ### Live API test — PASSED (2026-07-06)
 
@@ -160,17 +180,17 @@ redirect URL for email confirmation / magic links to land back in-app.
 
 ### Next steps (build order not yet done)
 
-**IMMEDIATE NEXT STEP → Full end-to-end deploy flow.** Steps 6 (contracts)
-and 7 (audit) are both done. Next in the build order: testnet deploy via
-RainbowKit (user's wallet calls the factory contract on a testnet — but
-NOTE the factory isn't deployed on any chain yet, see step 6's open item,
-so this needs the owner to deploy at least one testnet factory first),
-then mainnet deploy gated on the audit's `passesGate` (≥80), then explorer
-verification and an auto-generated token page. Wire this into the Token
-Factory UI after the audit section.
-Alternative the user may prefer first: wire the dashboard to real
-Supabase data (currently placeholder). Confirm with the user before
-starting.
+**IMMEDIATE NEXT STEP → Full end-to-end deploy flow.** Steps 6 (contracts),
+7 (audit), and 8 (dashboard data) are all done. Next in the build order:
+testnet deploy via RainbowKit (user's wallet calls the factory contract on
+a testnet — but NOTE the factory isn't deployed on any chain yet, see step
+6's open item, so this needs the owner to deploy at least one testnet
+factory first), then mainnet deploy gated on the audit's `passesGate`
+(≥80), then explorer verification and an auto-generated token page. Wire
+this into the Token Factory UI after the audit section. Each real deploy
+should insert a row into the `deployments` table (schema already exists
+from step 8) so the dashboard picks it up immediately with no further
+wiring needed.
 
 Deferred / later:
 
@@ -184,9 +204,10 @@ Deferred / later:
   pipeline is already built and wired in — see step 7).
 - Full end-to-end deploy flow (testnet → RainbowKit mainnet via factory →
   explorer verify → token page).
-- Wire dashboard to real data; Memecoin Factory; full landing page;
-  badges; Paddle/Lemon Squeezy Pro; oscAr CORE (triple-layer auth) +
-  SENTINEL; PWA finalization; security hardening pass.
+- Wire the Gas Price Widget to Alchemy (last placeholder on the
+  dashboard); Memecoin Factory; full landing page; badges; Paddle/Lemon
+  Squeezy Pro; oscAr CORE (triple-layer auth) + SENTINEL; PWA
+  finalization; security hardening pass.
 
 ### Dev notes
 
