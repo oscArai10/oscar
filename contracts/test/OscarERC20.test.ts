@@ -140,6 +140,22 @@ describe("OscarERC20", () => {
       await token.connect(owner).setLimits(0n, 0n); // disabling is allowed
       expect(await token.maxWallet()).to.equal(0n);
     });
+
+    it("enforces the same floor at construction, not just via setLimits", async () => {
+      const { owner } = await loadFixture(fixture); // 1,000,000 supply -> floor 1,000
+      const Token = await ethers.getContractFactory("OscarERC20");
+      await expect(deploy({ maxWallet: 500n }, owner.address)).to.be.revertedWithCustomError(
+        Token,
+        "LimitTooLow",
+      );
+      await expect(deploy({ maxTx: 500n }, owner.address)).to.be.revertedWithCustomError(
+        Token,
+        "LimitTooLow",
+      );
+      // At/above the floor is fine.
+      const token = await deploy({ maxWallet: 1000n, maxTx: 1000n }, owner.address);
+      expect(await token.maxWallet()).to.equal(wei("1000"));
+    });
   });
 
   describe("trading gate (anti-snipe)", () => {
@@ -163,6 +179,70 @@ describe("OscarERC20", () => {
         "AlreadyEnabled",
       );
       expect(await token.tradingEnabled()).to.equal(true);
+    });
+  });
+
+  describe("anti-bot cooldown", () => {
+    it("blocks the same address from appearing twice in one block during the antibot window", async () => {
+      const { owner, alice, bob } = await loadFixture(fixture);
+      const token = await deploy(
+        { tradingEnabledAtLaunch: true, antibotBlocks: 5 },
+        owner.address,
+      );
+      await token.connect(owner).transfer(alice.address, wei("100"));
+
+      // Bundle two transfers into the SAME block (default automine gives each
+      // tx its own block, which would never collide). Explicit gasLimit skips
+      // gas estimation, so both submit regardless of whether they'll revert.
+      await ethers.provider.send("evm_setAutomine", [false]);
+      const tx1 = await token
+        .connect(alice)
+        .transfer(bob.address, wei("1"), { gasLimit: 300_000 });
+      const tx2 = await token
+        .connect(alice)
+        .transfer(bob.address, wei("1"), { gasLimit: 300_000 });
+      await ethers.provider.send("evm_mine", []);
+      await ethers.provider.send("evm_setAutomine", [true]);
+
+      const receipt1 = await ethers.provider.getTransactionReceipt(tx1.hash);
+      const receipt2 = await ethers.provider.getTransactionReceipt(tx2.hash);
+      expect(receipt1!.status).to.equal(1);
+      expect(receipt2!.status).to.equal(0); // reverted: AntibotCooldown
+      expect(await token.balanceOf(bob.address)).to.equal(wei("1"));
+    });
+
+    it("allows one transfer per block within the window, and stops applying once it passes", async () => {
+      const { owner, alice, bob } = await loadFixture(fixture);
+      const token = await deploy(
+        { tradingEnabledAtLaunch: true, antibotBlocks: 2 },
+        owner.address,
+      );
+      await token.connect(owner).transfer(alice.address, wei("100"));
+
+      // Within the window: sequential (different-block) transfers are fine.
+      await token.connect(alice).transfer(bob.address, wei("1"));
+      expect(await token.balanceOf(bob.address)).to.equal(wei("1"));
+
+      // Mine past the antibot window.
+      await ethers.provider.send("hardhat_mine", ["0xa"]);
+
+      // Now bundle two same-block transfers from alice — both should succeed,
+      // since the cooldown only applies during the disclosed window.
+      await ethers.provider.send("evm_setAutomine", [false]);
+      const tx1 = await token
+        .connect(alice)
+        .transfer(bob.address, wei("1"), { gasLimit: 300_000 });
+      const tx2 = await token
+        .connect(alice)
+        .transfer(bob.address, wei("1"), { gasLimit: 300_000 });
+      await ethers.provider.send("evm_mine", []);
+      await ethers.provider.send("evm_setAutomine", [true]);
+
+      const receipt1 = await ethers.provider.getTransactionReceipt(tx1.hash);
+      const receipt2 = await ethers.provider.getTransactionReceipt(tx2.hash);
+      expect(receipt1!.status).to.equal(1);
+      expect(receipt2!.status).to.equal(1);
+      expect(await token.balanceOf(bob.address)).to.equal(wei("3"));
     });
   });
 

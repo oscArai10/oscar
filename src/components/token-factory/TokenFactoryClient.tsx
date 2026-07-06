@@ -11,8 +11,12 @@ import {
   AlertTriangle,
   FileCode2,
   BookOpenText,
+  ScanSearch,
+  Lock,
+  Unlock,
 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
+import { ProgressRing } from "@/components/ui/ProgressRing";
 import { cn } from "@/lib/utils/cn";
 
 const QUICK_CHIPS: { label: string; prompt: string }[] = [
@@ -55,17 +59,55 @@ type Phase =
   | { kind: "error"; message: string }
   | { kind: "done"; contract: GeneratedContract };
 
+interface AuditFinding {
+  source: "static_analysis" | "ai_review";
+  severity: "high" | "medium" | "low" | "informational";
+  category: "security" | "gas" | "code_quality";
+  title: string;
+  plain_language: string;
+}
+
+interface AuditReview {
+  security_score: number;
+  gas_score: number;
+  code_quality_score: number;
+  summary: string;
+  findings: AuditFinding[];
+}
+
+type AuditPhase =
+  | { kind: "idle" }
+  | { kind: "loading" }
+  | { kind: "unavailable"; message: string }
+  | { kind: "compile_error"; message: string }
+  | { kind: "error"; message: string }
+  | {
+      kind: "completed";
+      review: AuditReview;
+      overallScore: number;
+      passesGate: boolean;
+    };
+
+const SEVERITY_COLOR: Record<AuditFinding["severity"], string> = {
+  high: "#EF4444",
+  medium: "#F59E0B",
+  low: "#00D4FF",
+  informational: "#94A3B8",
+};
+
 export function TokenFactoryClient({ initialPrompt }: { initialPrompt?: string }) {
   const [prompt, setPrompt] = useState(initialPrompt ?? "");
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [tab, setTab] = useState<"summary" | "code">("summary");
   const [copied, setCopied] = useState(false);
+  const [audit, setAudit] = useState<AuditPhase>({ kind: "idle" });
 
   async function generate() {
     const trimmed = prompt.trim();
     if (trimmed.length < 10 || phase.kind === "loading") return;
     setPhase({ kind: "loading" });
     setTab("summary");
+    setAudit({ kind: "idle" });
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
@@ -96,6 +138,41 @@ export function TokenFactoryClient({ initialPrompt }: { initialPrompt?: string }
     await navigator.clipboard.writeText(phase.contract.solidity_code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function runAudit() {
+    if (phase.kind !== "done" || audit.kind === "loading") return;
+    setAudit({ kind: "loading" });
+    try {
+      const res = await fetch("/api/audit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          solidity_code: phase.contract.solidity_code,
+          contract_name: phase.contract.contract_name,
+        }),
+      });
+      const data = await res.json();
+      if (data.status === "unavailable") {
+        setAudit({ kind: "unavailable", message: data.error });
+      } else if (data.status === "compile_error") {
+        setAudit({ kind: "compile_error", message: data.error });
+      } else if (!res.ok) {
+        setAudit({ kind: "error", message: data.error ?? "Audit failed. Please try again." });
+      } else {
+        setAudit({
+          kind: "completed",
+          review: data.review,
+          overallScore: data.overallScore,
+          passesGate: data.passesGate,
+        });
+      }
+    } catch {
+      setAudit({
+        kind: "error",
+        message: "Could not reach the audit service. Check your connection and try again.",
+      });
+    }
   }
 
   return (
@@ -301,11 +378,121 @@ export function TokenFactoryClient({ initialPrompt }: { initialPrompt?: string }
             </div>
           )}
 
-          <p className="mt-5 border-t border-white/5 pt-4 text-xs text-text-muted">
-            Next up (coming in the following build steps): automated security
-            audit with scores, free testnet deploy, then mainnet from your own
-            wallet. Nothing deploys until you sign it.
-          </p>
+          <div className="mt-5 border-t border-white/5 pt-4">
+            {audit.kind === "idle" && (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs text-text-muted">
+                  Run the security audit before deploying — Slither static
+                  analysis + oscAr AI review, scored out of 100. A score below
+                  80 blocks mainnet deploy (testnet stays free either way).
+                </p>
+                <button
+                  onClick={runAudit}
+                  className="flex shrink-0 items-center gap-2 rounded-lg border border-neon bg-white/5 px-4 py-2 text-sm font-semibold text-accent-cyan transition-colors hover:border-accent-cyan"
+                >
+                  <ScanSearch size={15} />
+                  Run Security Audit
+                </button>
+              </div>
+            )}
+
+            {audit.kind === "loading" && (
+              <div className="flex items-center gap-3 text-sm text-text-secondary">
+                <ScanSearch size={16} className="animate-pulse text-accent-cyan" />
+                Running static analysis and AI review — this can take a minute…
+              </div>
+            )}
+
+            {audit.kind === "unavailable" && (
+              <div className="flex items-start gap-3 rounded-xl border border-status-gold/30 bg-status-gold/5 p-4">
+                <AlertTriangle size={18} className="mt-0.5 shrink-0 text-status-gold" />
+                <p className="text-sm text-text-secondary">{audit.message}</p>
+              </div>
+            )}
+
+            {(audit.kind === "compile_error" || audit.kind === "error") && (
+              <div className="flex items-start gap-3 rounded-xl border border-status-red/30 bg-status-red/5 p-4">
+                <ShieldAlert size={18} className="mt-0.5 shrink-0 text-status-red" />
+                <p className="text-sm text-text-secondary">{audit.message}</p>
+              </div>
+            )}
+
+            {audit.kind === "completed" && (
+              <div className="flex flex-col gap-5">
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                  <ProgressRing
+                    value={audit.review.security_score}
+                    color="#2563EB"
+                    label="Security"
+                  />
+                  <ProgressRing
+                    value={audit.review.gas_score}
+                    color="#9333EA"
+                    label="Gas Efficiency"
+                  />
+                  <ProgressRing
+                    value={audit.review.code_quality_score}
+                    color="#22D3EE"
+                    label="Code Quality"
+                  />
+                  <ProgressRing
+                    value={audit.overallScore}
+                    color={audit.passesGate ? "#22C55E" : "#EF4444"}
+                    label="Overall"
+                  />
+                </div>
+
+                <p className="text-sm text-text-secondary">{audit.review.summary}</p>
+
+                {audit.review.findings.length > 0 && (
+                  <div>
+                    <h3 className="font-heading text-xs font-bold uppercase tracking-wide text-accent-cyan-blue">
+                      Findings
+                    </h3>
+                    <ul className="mt-2 flex flex-col gap-2">
+                      {audit.review.findings.map((f, i) => (
+                        <li
+                          key={i}
+                          className="flex items-start gap-2 rounded-lg border border-neon bg-bg-card px-3 py-2 text-sm"
+                        >
+                          <span
+                            className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full"
+                            style={{ backgroundColor: SEVERITY_COLOR[f.severity] }}
+                          />
+                          <span className="text-text-secondary">
+                            <span
+                              className="font-semibold uppercase"
+                              style={{ color: SEVERITY_COLOR[f.severity] }}
+                            >
+                              {f.severity}
+                            </span>{" "}
+                            <span className="font-semibold text-text-primary">
+                              {f.title}:
+                            </span>{" "}
+                            {f.plain_language}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div
+                  className={cn(
+                    "flex items-center gap-2 rounded-xl border p-4 text-sm font-semibold",
+                    audit.passesGate
+                      ? "border-status-green/30 bg-status-green/5 text-status-green"
+                      : "border-status-red/30 bg-status-red/5 text-status-red",
+                  )}
+                >
+                  {audit.passesGate ? <Unlock size={16} /> : <Lock size={16} />}
+                  {audit.passesGate
+                    ? `Mainnet unlocked — overall score ${audit.overallScore}/100`
+                    : `Mainnet blocked — overall score ${audit.overallScore}/100 (needs ≥80). Testnet deploy is still free.`}
+                </div>
+              </div>
+            )}
+          </div>
         </Card>
       )}
     </div>

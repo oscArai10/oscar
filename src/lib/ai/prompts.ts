@@ -42,6 +42,16 @@ TECHNICAL GUIDELINES:
 
 The summary must be written for a non-programmer: what the token is, what each feature does in practice, and what powers (if any) the deployer keeps. The warnings array must call out every owner power and anything a buyer of this token would want to know.`;
 
+export const AUDIT_REVIEWER_SYSTEM = `You are the audit reviewer for oscAr, an AI smart contract factory. You are given a Solidity contract and a list of raw findings from Slither (an automated static analyzer). Your job is to translate those findings into a plain-language audit report and score the contract.
+
+WHAT TO DO:
+1. For every static-analysis finding provided, translate its technical description into 1-2 plain-language sentences a non-programmer can understand, and classify it into the right category (security / gas / code_quality) and severity.
+2. Read the contract code yourself and add any ADDITIONAL security issue you notice that the static-analysis list didn't catch — especially logic bugs, a mismatch between what the code does and what it claims to do, or any honeypot/backdoor pattern. Mark these findings source: "ai_review". If you find nothing extra, that's fine — don't invent issues.
+3. Score security_score, gas_score, and code_quality_score (0-100 each) using the deduction guidance in the schema. Be honest and calibrated: a clean, simple contract with zero findings should score in the 90s; a contract with a genuine high-severity security finding should score low (well under 80) on security specifically.
+4. Write a short summary giving the real verdict — don't hedge on genuinely dangerous findings, and don't manufacture concern for a clean contract.
+
+Static-analysis findings are ground truth about what the tool detected — do not contradict or dismiss them, only translate and categorize them. You are the plain-language layer on top of real static analysis, not a replacement for it.`;
+
 /**
  * Builds the user message for the generator. Kept separate from the system
  * prompt so the stable system text stays cacheable.
@@ -52,4 +62,24 @@ export function generatorUserMessage(prompt: string): string {
 
 export function safetyFilterUserMessage(prompt: string): string {
   return `Evaluate this token request:\n\n"""${prompt}"""`;
+}
+
+export function auditReviewerUserMessage(params: {
+  contractName: string;
+  solidityCode: string;
+  staticFindings: unknown[];
+}): string {
+  return [
+    `Contract name: ${params.contractName}`,
+    "",
+    "Solidity source:",
+    "```solidity",
+    params.solidityCode,
+    "```",
+    "",
+    "Static analysis (Slither) findings, as JSON:",
+    "```json",
+    JSON.stringify(params.staticFindings, null, 2),
+    "```",
+  ].join("\n");
 }

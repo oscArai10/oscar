@@ -65,6 +65,7 @@ contract OscarERC20 is ERC20, ERC20Burnable, ERC20Pausable, Ownable2Step {
     mapping(address => bool) public isAMMPair;
     mapping(address => bool) public isExcludedFromLimits;
     mapping(address => bool) public isExcludedFromTax;
+    mapping(address => uint256) private _lastTxBlock;
 
     event TradingEnabled(uint256 launchBlock);
     event AMMPairSet(address indexed pair, bool isPair);
@@ -85,6 +86,7 @@ contract OscarERC20 is ERC20, ERC20Burnable, ERC20Pausable, Ownable2Step {
     error LimitTooLow();
     error AlreadyEnabled();
     error PairCannotBeLimited();
+    error AntibotCooldown();
 
     constructor(TokenConfig memory cfg)
         ERC20(cfg.name, cfg.symbol)
@@ -105,11 +107,22 @@ contract OscarERC20 is ERC20, ERC20Burnable, ERC20Pausable, Ownable2Step {
         buyTaxBps = cfg.buyTaxBps;
         sellTaxBps = cfg.sellTaxBps;
         taxWallet = cfg.taxWallet;
-        maxWallet = cfg.maxWallet * scale;
-        maxTx = cfg.maxTx * scale;
         antibotBlocks = cfg.antibotBlocks > MAX_ANTIBOT_BLOCKS
             ? MAX_ANTIBOT_BLOCKS
             : cfg.antibotBlocks;
+
+        // Same 0.1%-of-supply floor as setLimits() — enforced at construction
+        // too, so a non-zero limit can't be configured as a de-facto transfer
+        // lock from the very first block, not just when the owner changes it
+        // later.
+        uint256 initialMint = cfg.initialSupply * scale;
+        uint256 floor = initialMint / 1000;
+        uint256 mw = cfg.maxWallet * scale;
+        uint256 mt = cfg.maxTx * scale;
+        if (mw != 0 && mw < floor) revert LimitTooLow();
+        if (mt != 0 && mt < floor) revert LimitTooLow();
+        maxWallet = mw;
+        maxTx = mt;
 
         // Owner, tax wallet, and the token itself bypass limits and tax so the
         // owner can seed liquidity before launch.
@@ -222,6 +235,21 @@ contract OscarERC20 is ERC20, ERC20Burnable, ERC20Pausable, Ownable2Step {
         // Pre-launch: only limit-excluded parties (owner seeding LP) may move.
         if (!tradingEnabled && !fromExcludedLimits && !toExcludedLimits) {
             revert TradingNotEnabled();
+        }
+
+        // Anti-bot: for `antibotBlocks` blocks after launch, each non-excluded
+        // address may appear in at most one transfer per block. This blocks
+        // same-block bot bundling (multi-buy/sandwich patterns) at launch
+        // without restricting normal trading once the window passes.
+        if (antibotBlocks != 0 && block.number <= launchBlock + antibotBlocks) {
+            if (!fromExcludedLimits) {
+                if (_lastTxBlock[from] == block.number) revert AntibotCooldown();
+                _lastTxBlock[from] = block.number;
+            }
+            if (!toExcludedLimits) {
+                if (_lastTxBlock[to] == block.number) revert AntibotCooldown();
+                _lastTxBlock[to] = block.number;
+            }
         }
 
         // Max tx on the transfer amount.
