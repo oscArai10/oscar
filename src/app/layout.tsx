@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Syne, Exo_2, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { Providers } from "./providers";
 
 const syne = Syne({
   subsets: ["latin"],
@@ -49,7 +50,7 @@ export default function RootLayout({
       <body
         className={`${syne.variable} ${exo2.variable} ${jetbrainsMono.variable} antialiased`}
       >
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
