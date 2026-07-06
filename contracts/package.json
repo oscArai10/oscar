@@ -1,0 +1,19 @@
+{
+  "name": "oscar-contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "oscAr smart contracts — OpenZeppelin v5 ERC20 template + per-chain fee-forwarding factory",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:factory": "hardhat run scripts/deploy-factory.ts"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.22.10",
+    "dotenv": "^16.4.5"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.2"
+  }
+}

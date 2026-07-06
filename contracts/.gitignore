@@ -1,0 +1,9 @@
+node_modules
+artifacts
+cache
+typechain-types
+coverage
+coverage.json
+
+# Owner-only secrets: deployer private key + RPC/scan keys. NEVER commit.
+.env
