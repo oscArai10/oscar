@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { runAudit } from "@/lib/audit/pipeline";
 import { OscarAIUnavailableError } from "@/lib/ai/provider";
 import { checkRateLimit } from "@/lib/ratelimit";
+import { createClient, isSupabaseConfigured } from "@/lib/supabase/server";
+import type { AuditReview } from "@/lib/ai/schemas";
 
 // Static analysis + AI review can take a while — allow up to 5 minutes.
 export const maxDuration = 300;
@@ -16,7 +18,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const b = body as { solidity_code?: unknown; contract_name?: unknown };
+  const b = body as {
+    solidity_code?: unknown;
+    contract_name?: unknown;
+    token_name?: unknown;
+    token_symbol?: unknown;
+  };
   if (typeof b.solidity_code !== "string" || b.solidity_code.trim().length < 10) {
     return NextResponse.json({ error: "Missing contract source code." }, { status: 400 });
   }
@@ -58,6 +65,16 @@ export async function POST(req: NextRequest) {
         { status: 422 },
       );
     }
+
+    await saveAuditReport({
+      contractName: b.contract_name.trim(),
+      tokenName: typeof b.token_name === "string" ? b.token_name : null,
+      tokenSymbol: typeof b.token_symbol === "string" ? b.token_symbol : null,
+      review: result.review,
+      overallScore: result.overallScore,
+      passesGate: result.passesGate,
+    });
+
     return NextResponse.json({
       status: "completed",
       review: result.review,
@@ -74,5 +91,47 @@ export async function POST(req: NextRequest) {
       { error: "Something went wrong running the audit. Please try again." },
       { status: 500 },
     );
+  }
+}
+
+/**
+ * Persists a completed audit for the signed-in user, so the dashboard has
+ * real history to show. Best-effort: audits work for anonymous callers too
+ * (nothing to save), and a save failure never breaks the audit response —
+ * the audit itself already succeeded by this point.
+ */
+async function saveAuditReport(params: {
+  contractName: string;
+  tokenName: string | null;
+  tokenSymbol: string | null;
+  review: AuditReview;
+  overallScore: number;
+  passesGate: boolean;
+}) {
+  if (!isSupabaseConfigured()) return;
+
+  try {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { error } = await supabase.from("audit_reports").insert({
+      user_id: user.id,
+      contract_name: params.contractName,
+      token_name: params.tokenName,
+      token_symbol: params.tokenSymbol,
+      security_score: params.review.security_score,
+      gas_score: params.review.gas_score,
+      code_quality_score: params.review.code_quality_score,
+      overall_score: params.overallScore,
+      passes_gate: params.passesGate,
+      findings: params.review.findings,
+      summary: params.review.summary,
+    });
+    if (error) console.error("[api/audit] failed to save audit report", error);
+  } catch (err) {
+    console.error("[api/audit] failed to save audit report", err);
   }
 }

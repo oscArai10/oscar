@@ -1,45 +1,23 @@
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
-import { createClient, isSupabaseConfigured } from "@/lib/supabase/server";
+import { getCurrentUserProfile } from "@/lib/supabase/profile";
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // Middleware already gates /dashboard, but fetch the profile for display.
-  // Falls back to Guest when Supabase isn't configured yet (pre-keys).
-  let userName = "Guest";
-  let userRole = "Free Tier";
-
-  if (isSupabaseConfigured()) {
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("display_name, wallet_address, email, tier, role")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (profile) {
-        userName =
-          profile.display_name ||
-          profile.email ||
-          (profile.wallet_address
-            ? `${profile.wallet_address.slice(0, 6)}…${profile.wallet_address.slice(-4)}`
-            : "Account");
-        userRole =
-          profile.role === "owner"
-            ? "Owner"
-            : profile.tier === "pro"
-              ? "Pro"
-              : "Free Tier";
-      }
-    }
-  }
+  // Middleware already gates /dashboard; this just fetches display data.
+  // Falls back to Guest when Supabase isn't configured yet or no session.
+  const profile = await getCurrentUserProfile();
+  const userName = profile?.displayName ?? "Guest";
+  const userRole = profile
+    ? profile.role === "owner"
+      ? "Owner"
+      : profile.tier === "pro"
+        ? "Pro"
+        : "Free Tier"
+    : "Free Tier";
 
   return (
     <div className="flex min-h-screen bg-bg-primary">

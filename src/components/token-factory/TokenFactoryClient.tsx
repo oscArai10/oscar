@@ -150,6 +150,8 @@ export function TokenFactoryClient({ initialPrompt }: { initialPrompt?: string }
         body: JSON.stringify({
           solidity_code: phase.contract.solidity_code,
           contract_name: phase.contract.contract_name,
+          token_name: phase.contract.token_name,
+          token_symbol: phase.contract.token_symbol,
         }),
       });
       const data = await res.json();

@@ -128,6 +128,78 @@ create policy "profiles_update_own"
 -- service role only. (No policy = denied under RLS.)
 
 -- ---------------------------------------------------------------------------
--- Done. Later steps add: deployments, audit_reports (each with its own RLS
--- scoping rows to auth.uid()), and CORE-only tables gated behind is_owner().
+-- deployments — one row per token deployment (testnet or mainnet). Written
+-- by the deploy flow (a later build step); the table exists now so the
+-- dashboard can query real (currently empty) data rather than placeholders.
+-- chain is a free-text slug matching the keys in src/lib/chains/chains.ts.
+-- ---------------------------------------------------------------------------
+create table if not exists public.deployments (
+  id               uuid primary key default gen_random_uuid(),
+  user_id          uuid not null references public.profiles(id) on delete cascade,
+  contract_name    text not null,
+  token_name       text not null,
+  token_symbol     text not null,
+  chain            text not null,
+  is_mainnet       boolean not null default false,
+  status           text not null default 'pending' check (status in ('pending', 'active', 'failed')),
+  audit_score      integer,
+  contract_address text,
+  tx_hash          text,
+  explorer_url     text,
+  created_at       timestamptz not null default now()
+);
+
+comment on table public.deployments is 'One row per token deployment. Populated by the deploy flow (later build step).';
+
+alter table public.deployments enable row level security;
+
+drop policy if exists "deployments_select_own_or_owner" on public.deployments;
+create policy "deployments_select_own_or_owner"
+  on public.deployments for select
+  using (auth.uid() = user_id or public.is_owner());
+
+drop policy if exists "deployments_insert_own" on public.deployments;
+create policy "deployments_insert_own"
+  on public.deployments for insert
+  with check (auth.uid() = user_id);
+
+-- ---------------------------------------------------------------------------
+-- audit_reports — one row per audit run from the Token Factory. Written by
+-- POST /api/audit for signed-in users (best-effort — a failed insert never
+-- breaks the audit response). deployment_id is nullable since audits happen
+-- before a deploy exists.
+-- ---------------------------------------------------------------------------
+create table if not exists public.audit_reports (
+  id                  uuid primary key default gen_random_uuid(),
+  user_id             uuid not null references public.profiles(id) on delete cascade,
+  deployment_id       uuid references public.deployments(id) on delete set null,
+  contract_name       text not null,
+  token_name          text,
+  token_symbol        text,
+  security_score      integer not null,
+  gas_score           integer not null,
+  code_quality_score  integer not null,
+  overall_score       integer not null,
+  passes_gate         boolean not null,
+  findings            jsonb not null default '[]',
+  summary             text not null,
+  created_at          timestamptz not null default now()
+);
+
+comment on table public.audit_reports is 'One row per Token Factory audit run (see src/lib/audit/pipeline.ts).';
+
+alter table public.audit_reports enable row level security;
+
+drop policy if exists "audit_reports_select_own_or_owner" on public.audit_reports;
+create policy "audit_reports_select_own_or_owner"
+  on public.audit_reports for select
+  using (auth.uid() = user_id or public.is_owner());
+
+drop policy if exists "audit_reports_insert_own" on public.audit_reports;
+create policy "audit_reports_insert_own"
+  on public.audit_reports for insert
+  with check (auth.uid() = user_id);
+
+-- ---------------------------------------------------------------------------
+-- Done. Later steps add CORE-only tables gated behind is_owner().
 -- ---------------------------------------------------------------------------
