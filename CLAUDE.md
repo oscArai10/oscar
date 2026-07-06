@@ -83,10 +83,41 @@ Still open: OpenAI fallback key is `insufficient_quota` (untested live —
 fund it to exercise the GPT-4o failover path for real). Security: the
 API keys were pasted into chat, so **rotate both** when convenient.
 
+### Auth (step 5) — BUILT & live-tested (2026-07-06)
+
+SIWE wallet + email/OTP login on Supabase, RLS from day one. Verified
+against the real Supabase project: email password sign-in → dashboard,
+profile auto-create trigger fired, Topbar showed the real user, sign-out
+cleared the session, middleware re-gated /dashboard (307 → /login), and
+FK cascade deleted the profile with the auth user.
+- `supabase/schema.sql` — profiles table (mirrors auth.users), signup
+  trigger, RLS. PULSE/CORE split is STRUCTURAL: role enum ('user'/'owner')
+  + is_owner(); users read/update only their own row and can't self-
+  escalate role/tier; owner reads all. Run once in the SQL editor (done).
+- Clients: `src/lib/supabase/{client,server,admin}.ts` +
+  `isSupabaseConfigured()` guard so the app renders before keys exist.
+- SIWE: `/api/auth/nonce` (httpOnly nonce cookie) + `/api/auth/siwe`
+  (verify sig → find/create wallet user via service role → mint one-time
+  token → client `verifyOtp` for a cookie session). Wallet users map to
+  `{address}@wallet.oscar`. NOTE: the wallet round-trip itself is UNTESTED
+  (needs a browser wallet + a real WalletConnect projectId).
+- Email: signUp / signInWithPassword / magic-link OTP via Supabase Auth;
+  `/auth/callback` exchanges the PKCE code.
+- wagmi + RainbowKit across all 10 chains (`src/lib/wagmi.ts`,
+  `src/app/providers.tsx`); `src/middleware.ts` gates /dashboard; Topbar
+  has a sign-out menu; `/login` is branded (wallet + email tabs).
+
+Open items: (1) WalletConnect projectId in `.env.local` is currently the
+Supabase project ref, NOT a real Reown id — wallet login won't connect
+until a real 32-char id from cloud.reown.com is pasted. (2) In Supabase →
+Auth → URL Configuration, add `http://localhost:3000/auth/callback` as a
+redirect URL for email confirmation / magic links to land back in-app.
+(3) Rotate the pasted keys when convenient.
+
 ### Next steps (build order not yet done)
 
-- Auth (SIWE + email/OTP + optional 2FA), Supabase schema with RLS from
-  the start (structural PULSE/CORE separation).
+- 2FA (authenticator app) + login history / device management (deferred
+  slice of the auth step).
 - Contract layer (Hardhat): OpenZeppelin ERC20 + memecoin presets, then
   the per-chain oscAr Factory Contract (atomic fee-forward). Deploy
   scripts for the owner to run.
