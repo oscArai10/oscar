@@ -225,24 +225,29 @@ redirect URL for email confirmation / magic links to land back in-app.
 
 ### Next steps (build order not yet done)
 
-**PAUSED HERE (2026-07-06) — waiting on the user's testnet factory deploy.**
-Every step through the deploy flow (9) is built and committed; nothing
-else is blocking on code. The user is now going to run
-`contracts/scripts/deploy-factory.ts` themselves against a testnet (funded
-wallet, private key stays in `contracts/.env`, never in chat).
+**PAUSED HERE (2026-07-06) — `contracts/.env` is filled in; next is running
+the actual factory deploy.** Every step through the deploy flow (9) is
+built and committed; nothing else is blocking on code. The user has now
+filled in `contracts/.env` (`DEPLOYER_PRIVATE_KEY`, `ALCHEMY_API_KEY`,
+`FEE_WALLET_ADDRESS` — a funded testnet wallet, Base Sepolia recommended).
+That file is gitignored and was never seen in this chat — confirmed via
+`git status --short --ignored` showing it as ignored, not read directly.
 
 **When the session resumes, the very first thing to do:**
-1. Ask for (or read back) the deployed factory address + which testnet.
-2. Record it in `src/lib/chains/chains.ts` under that chain's
-   `testnetFactoryAddress`.
+1. Run the deploy: `npx hardhat run scripts/deploy-factory.ts --network
+   baseSepolia` (from `contracts/`) — or whichever testnet the user
+   actually funded, confirm which first if unclear.
+2. Take the printed factory address and record it in
+   `src/lib/chains/chains.ts` under that chain's `testnetFactoryAddress`.
 3. Run a REAL testnet deploy end-to-end through the actual browser UI:
    generate a token, run the audit, connect a wallet, deploy via
    `DeploySection`, confirm the tx, confirm the row lands in `deployments`,
    confirm the token page renders. This is the first genuinely live
    `deployToken()` call of the whole project — treat it as a real
    verification pass, not a formality.
-4. If `ALCHEMY_API_KEY` isn't set yet, note that `/api/verify-contract`
-   still can't run — ask whether to set it up now.
+4. `ALCHEMY_API_KEY` in the app's `.env.local` (separate from
+   `contracts/.env`) is still empty as of this note — `/api/verify-contract`
+   can't run until it's set there too. Ask whether to set it up now.
 
 Only after that live deploy is confirmed working should net-new feature
 work resume: Memecoin Factory, full landing page, badges, Paddle/Lemon
