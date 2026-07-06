@@ -68,6 +68,20 @@ EVM chains, non-custodial, Claude AI primary / GPT-4o failover, branded
 5. **Auth** (SIWE wallet + email/OTP on Supabase, RLS from day one) —
    built and live-tested. Full detail + open items in the "Auth (step 5)"
    section below.
+6. **Contract layer** (`contracts/`, separate Hardhat project) — built &
+   fully tested (20/20 passing). `OscarERC20.sol`: audited configurable
+   OZ v5 ERC20 (tax capped 25%, max wallet/tx floored 0.1%, one-way
+   anti-snipe trading gate, opt-in mint/pause, no honeypot paths).
+   `OscarTokenFactory.sol`: per-chain, owner = business wallet;
+   `deployToken()` deploys the token AND forwards the flat native-coin fee
+   to the fee wallet atomically (reverts if fee transfer fails), refunds
+   excess, forces token owner = caller, owner-only fee/wallet setters.
+   `lib/presets.ts` (utility/fair-launch/memecoin configs),
+   `scripts/deploy-factory.ts` (owner runs per chain), 9 standard-EVM
+   chains + testnets via Alchemy, Etherscan V2 verify. zkSync deferred
+   (needs zksolc). NOT yet deployed on-chain — owner runs the deploy
+   scripts + funds gas, then records factory addresses in
+   `src/lib/chains/chains.ts` (factoryAddress).
 
 ### Live API test — PASSED (2026-07-06)
 
@@ -119,25 +133,27 @@ redirect URL for email confirmation / magic links to land back in-app.
 
 ### Next steps (build order not yet done)
 
-**IMMEDIATE NEXT STEP → Contract layer (Hardhat).** The user last approved
-finishing auth; the natural next step in the build order is the smart
-contracts. Build in `contracts/` (already scaffolded with a .gitkeep):
-Hardhat + OpenZeppelin v5 ERC20 base + memecoin presets with a test suite,
-THEN the per-chain oscAr Factory Contract (atomic fee-forward: user's
-deploy tx calls the factory, which deploys the token AND forwards the flat
-fee to the fee wallet in one tx; reverts if the fee transfer fails; owner-
-only setters for fee amount + fee wallet). Prepare Hardhat deploy scripts
-for the OWNER to run (owner signs + funds gas for the 10 factory deploys).
-Alternative if the user prefers: wire the dashboard to real Supabase data
-first. Confirm which with the user before starting.
+**IMMEDIATE NEXT STEP → Slither audit microservice + audit pass.** Contract
+layer is done (step 6). Next in the build order is the automated security
+audit: a Dockerized Slither microservice (Railway/Fly.io) exposing one
+internal API (POST contract code → Slither JSON findings), called
+server-side from the app with an internal API key; then the audit pass
+that combines Slither + AI review into the four scores (Security / Gas /
+Code Quality + overall) with the ≥80 gate that blocks mainnet. Slither is
+Python and CANNOT run in Vercel functions — it MUST be the separate
+service.
+Alternatives the user may prefer first: (a) wire the dashboard to real
+Supabase data, or (b) the end-to-end deploy flow (testnet → RainbowKit
+mainnet via the factory → explorer verify → token page) — though the
+deploy flow ideally comes after the audit gate. Confirm with the user.
 
 Deferred / later:
 
 - 2FA (authenticator app) + login history / device management (deferred
   slice of the auth step).
-- Contract layer (Hardhat): OpenZeppelin ERC20 + memecoin presets, then
-  the per-chain oscAr Factory Contract (atomic fee-forward). Deploy
-  scripts for the owner to run.
+- Owner deploys the factory contracts on-chain (runs
+  `contracts/scripts/deploy-factory.ts` per chain, funds gas) and records
+  each address in `src/lib/chains/chains.ts`. zkSync via zksolc separately.
 - Slither audit microservice (Dockerized, Railway/Fly.io), then the audit
   pass + scores (≥80 gate for mainnet).
 - Full end-to-end deploy flow (testnet → RainbowKit mainnet via factory →
