@@ -1,5 +1,5 @@
-import { ComingSoonStub } from "@/components/dashboard/ComingSoonStub";
+import { MemecoinFactoryClient } from "@/components/memecoin-factory/MemecoinFactoryClient";
 
 export default function MemecoinFactoryPage() {
-  return <ComingSoonStub title="Memecoin Factory" />;
+  return <MemecoinFactoryClient />;
 }

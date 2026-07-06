@@ -223,10 +223,41 @@ Auth → URL Configuration, add `http://localhost:3000/auth/callback` as a
 redirect URL for email confirmation / magic links to land back in-app.
 (3) Rotate the pasted keys when convenient.
 
+10. **Memecoin Factory** (`/dashboard/memecoin-factory`) — built &
+    live-tested. A guided, meme-flavored builder over the SAME real
+    pipeline as the Token Factory (no separate AI path, no mocks). The
+    shared generate→audit→deploy flow was extracted out of
+    TokenFactoryClient into `src/components/token-factory/`
+    `useContractPipeline.ts` (phase/audit state + /api/generate +
+    /api/audit fetches) and `ContractPipelinePanel.tsx` (brain loading
+    card, safety-rejection card, result tabs, audit section,
+    DeploySection) — both factories render the identical downstream flow.
+    `src/components/memecoin-factory/MemecoinFactoryClient.tsx` is the
+    builder: name/symbol + "Surprise me" wordlist roller, supply chips
+    (1M/100M/1B/1T/custom), three vibe presets mirroring
+    `contracts/lib/presets.ts` (Fair Launch = no taxes/limits/powers;
+    Community Treasury = 2/2 tax + anti-whale + anti-snipe gate; Degen
+    Mode = 4/4 + tighter limits), sliders for buy/sell tax, max
+    wallet/tx, anti-bot blocks, a launch-gate toggle, and a treasury
+    address field (required + validated when tax > 0). It composes a
+    deterministic plain-language prompt and calls the same
+    `/api/generate`. Verified live in the browser as a temp Supabase
+    user (deleted after, cascade confirmed): a real generation of
+    "GigaCoin" matched every dial exactly (1B fixed supply, 2%/2% to
+    the entered treasury, 2% max wallet correctly computed as 20M
+    tokens, 1% max tx, 3-block anti-bot, gated launch, no mint/pause),
+    and the Deploy section listed Base Sepolia with the real 0.0001 ETH
+    fee read from the live factory contract. Token Factory re-verified
+    working after the refactor; production build clean.
+
 ### Next steps (build order not yet done)
 
-**PAUSED HERE (2026-07-07) — first LIVE testnet deploy PASSED end-to-end.
-Next: pick the first net-new feature with the user.**
+**PAUSED HERE (2026-07-07) — Memecoin Factory (step 10) built &
+live-tested. Next net-new feature: confirm with the user — remaining:
+full landing page, badges, Paddle/Lemon Squeezy Pro, oscAr CORE +
+SENTINEL, PWA finalization, security hardening pass.**
+
+Context from the deploy milestone earlier the same day:
 
 The factory is live on **Base Sepolia** at
 `0x5A446b3ca84C962B487335be6d25B4527B01Aa3B` (recorded in
@@ -265,10 +296,11 @@ Open items before/alongside feature work:
 - WalletConnect projectId is still the placeholder — extension wallets
   work (injected connector), mobile/QR wallets don't.
 
-The live deploy is confirmed working, so net-new feature work can now
-resume: Memecoin Factory, full landing page, badges, Paddle/Lemon
-Squeezy Pro, oscAr CORE + SENTINEL, PWA finalization, security hardening
-pass. Confirm with the user which to pick up first — don't assume.
+The live deploy is confirmed working and the Memecoin Factory is done
+(step 10 above). Remaining net-new feature work: full landing page,
+badges, Paddle/Lemon Squeezy Pro, oscAr CORE + SENTINEL, PWA
+finalization, security hardening pass. Confirm with the user which to
+pick up first — don't assume.
 
 Deferred / later:
 
