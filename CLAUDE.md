@@ -65,6 +65,9 @@ EVM chains, non-custodial, Claude AI primary / GPT-4o failover, branded
      chips, brain-graphic loading state, safety-rejection card, error
      card, result with Plain English / Solidity tabs + copy. Dashboard
      PULSE bar routes typed prompt here via `?prompt=`.
+5. **Auth** (SIWE wallet + email/OTP on Supabase, RLS from day one) —
+   built and live-tested. Full detail + open items in the "Auth (step 5)"
+   section below.
 
 ### Live API test — PASSED (2026-07-06)
 
@@ -115,6 +118,20 @@ redirect URL for email confirmation / magic links to land back in-app.
 (3) Rotate the pasted keys when convenient.
 
 ### Next steps (build order not yet done)
+
+**IMMEDIATE NEXT STEP → Contract layer (Hardhat).** The user last approved
+finishing auth; the natural next step in the build order is the smart
+contracts. Build in `contracts/` (already scaffolded with a .gitkeep):
+Hardhat + OpenZeppelin v5 ERC20 base + memecoin presets with a test suite,
+THEN the per-chain oscAr Factory Contract (atomic fee-forward: user's
+deploy tx calls the factory, which deploys the token AND forwards the flat
+fee to the fee wallet in one tx; reverts if the fee transfer fails; owner-
+only setters for fee amount + fee wallet). Prepare Hardhat deploy scripts
+for the OWNER to run (owner signs + funds gas for the 10 factory deploys).
+Alternative if the user prefers: wire the dashboard to real Supabase data
+first. Confirm which with the user before starting.
+
+Deferred / later:
 
 - 2FA (authenticator app) + login history / device management (deferred
   slice of the auth step).
