@@ -28,17 +28,32 @@ exception when duplicate_object then null; end $$;
 -- id mirrors auth.users.id so RLS can use auth.uid() directly.
 -- ---------------------------------------------------------------------------
 create table if not exists public.profiles (
-  id             uuid primary key references auth.users(id) on delete cascade,
-  wallet_address text unique,
-  email          text,
-  display_name   text,
-  role           user_role not null default 'user',
-  tier           user_tier not null default 'free',
-  created_at     timestamptz not null default now(),
-  updated_at     timestamptz not null default now()
+  id                    uuid primary key references auth.users(id) on delete cascade,
+  wallet_address        text unique,
+  email                 text,
+  display_name          text,
+  role                  user_role not null default 'user',
+  tier                  user_tier not null default 'free',
+  paddle_customer_id    text unique,
+  paddle_subscription_id text unique,
+  subscription_status   text,
+  created_at            timestamptz not null default now(),
+  updated_at            timestamptz not null default now()
 );
 
 comment on table public.profiles is 'Public user profiles. role=owner unlocks oscAr CORE.';
+
+-- Migration for tables created before Paddle billing existed — safe to
+-- re-run, no-ops if the columns are already there.
+alter table public.profiles add column if not exists paddle_customer_id text;
+alter table public.profiles add column if not exists paddle_subscription_id text;
+alter table public.profiles add column if not exists subscription_status text;
+do $$ begin
+  alter table public.profiles add constraint profiles_paddle_customer_id_key unique (paddle_customer_id);
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table public.profiles add constraint profiles_paddle_subscription_id_key unique (paddle_subscription_id);
+exception when duplicate_object then null; end $$;
 
 -- Keep updated_at fresh.
 create or replace function public.touch_updated_at()
@@ -111,9 +126,10 @@ create policy "profiles_select_own_or_owner"
   on public.profiles for select
   using (auth.uid() = id or public.is_owner());
 
--- A user can update their own profile, but NOT their own role/tier
--- (those are set server-side with the service role). Enforced by re-checking
--- the columns haven't changed.
+-- A user can update their own profile, but NOT their own role/tier/billing
+-- fields (those are set server-side with the service role — tier and the
+-- paddle_* columns only ever change via the Paddle webhook handler).
+-- Enforced by re-checking the columns haven't changed.
 drop policy if exists "profiles_update_own" on public.profiles;
 create policy "profiles_update_own"
   on public.profiles for update
@@ -122,6 +138,12 @@ create policy "profiles_update_own"
     auth.uid() = id
     and role = (select role from public.profiles where id = auth.uid())
     and tier = (select tier from public.profiles where id = auth.uid())
+    and paddle_customer_id is not distinct from
+      (select paddle_customer_id from public.profiles where id = auth.uid())
+    and paddle_subscription_id is not distinct from
+      (select paddle_subscription_id from public.profiles where id = auth.uid())
+    and subscription_status is not distinct from
+      (select subscription_status from public.profiles where id = auth.uid())
   );
 
 -- No client-side INSERT/DELETE: profiles are created by the trigger and the

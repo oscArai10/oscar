@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { ContractPipelinePanel } from "@/components/token-factory/ContractPipelinePanel";
 import { useContractPipeline } from "@/components/token-factory/useContractPipeline";
 import { cn } from "@/lib/utils/cn";
+import type { MainnetDeployLimitStatus } from "@/lib/billing/limits";
 
 // Local wordlists for the "Surprise me" name roller — no AI call needed
 // just to pick a silly name.
@@ -83,7 +84,11 @@ function formatSupply(value: string): string {
   return BigInt(value).toLocaleString("en-US");
 }
 
-export function MemecoinFactoryClient() {
+export function MemecoinFactoryClient({
+  mainnetLimitStatus,
+}: {
+  mainnetLimitStatus: MainnetDeployLimitStatus | null;
+}) {
   const { phase, audit, generate, runAudit } = useContractPipeline();
 
   const [name, setName] = useState("");
@@ -417,6 +422,7 @@ export function MemecoinFactoryClient() {
         audit={audit}
         onRunAudit={runAudit}
         loadingSubtext="Safety check first, then your memecoin is written on audited OpenZeppelin bases. Great memes take a minute or two."
+        mainnetLimitStatus={mainnetLimitStatus}
       />
     </div>
   );

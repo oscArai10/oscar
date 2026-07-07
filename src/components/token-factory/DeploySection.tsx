@@ -13,11 +13,13 @@ import {
   AlertTriangle,
   Lock,
 } from "lucide-react";
+import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { getDeployableChains } from "@/lib/contracts/availableChains";
 import { useDeployFee, useDeployToken } from "@/lib/contracts/useDeployToken";
 import { validateDeployConfig } from "@/lib/contracts/deployConfig";
 import type { DeployConfig } from "@/lib/ai/schemas";
+import type { MainnetDeployLimitStatus } from "@/lib/billing/limits";
 
 interface DeploySectionProps {
   contractName: string;
@@ -26,6 +28,8 @@ interface DeploySectionProps {
   deployConfig: DeployConfig;
   canDeployMainnet: boolean;
   auditOverallScore: number | null;
+  /** null when signed out / Supabase not configured — no limit applied. */
+  mainnetLimitStatus: MainnetDeployLimitStatus | null;
 }
 
 export function DeploySection({
@@ -35,6 +39,7 @@ export function DeploySection({
   deployConfig,
   canDeployMainnet,
   auditOverallScore,
+  mainnetLimitStatus,
 }: DeploySectionProps) {
   const { address, isConnected } = useAccount();
   const currentChainId = useChainId();
@@ -57,9 +62,10 @@ export function DeploySection({
 
   const wrongNetwork = isConnected && !!selected && currentChainId !== selected.chainId;
   const blockedByGate = !!selected?.isMainnet && !canDeployMainnet;
+  const blockedByLimit = !!selected?.isMainnet && mainnetLimitStatus?.reachedLimit === true;
 
   function handleDeploy() {
-    if (!selected || !address || feeWei === undefined || blockedByGate) return;
+    if (!selected || !address || feeWei === undefined || blockedByGate || blockedByLimit) return;
     if (wrongNetwork) {
       switchChain?.({ chainId: selected.chainId });
       return;
@@ -173,7 +179,12 @@ export function DeploySection({
           >
             {allChains.map((c) => (
               <option key={c.key} value={c.key}>
-                {c.label} {c.isMainnet && !canDeployMainnet ? "(locked — run audit ≥80)" : ""}
+                {c.label}{" "}
+                {c.isMainnet && !canDeployMainnet
+                  ? "(locked — run audit ≥80)"
+                  : c.isMainnet && mainnetLimitStatus?.reachedLimit
+                    ? "(locked — free tier limit reached)"
+                    : ""}
               </option>
             ))}
           </select>
@@ -185,6 +196,20 @@ export function DeploySection({
             <p className="text-sm text-text-secondary">
               Mainnet is locked until this contract passes the security audit
               (score ≥ 80). Run the audit above, or pick a testnet instead.
+            </p>
+          </div>
+        )}
+
+        {!blockedByGate && blockedByLimit && (
+          <div className="flex items-start gap-3 rounded-xl border border-status-gold/30 bg-status-gold/5 p-3">
+            <Lock size={16} className="mt-0.5 shrink-0 text-status-gold" />
+            <p className="text-sm text-text-secondary">
+              You&apos;ve used {mainnetLimitStatus?.usedThisMonth}/{mainnetLimitStatus?.limit} free
+              mainnet deploy{mainnetLimitStatus?.limit === 1 ? "" : "s"} this month.{" "}
+              <Link href="/dashboard/settings" className="font-semibold text-accent-cyan hover:underline">
+                Upgrade to Pro
+              </Link>{" "}
+              for unlimited mainnet deploys, or pick a testnet instead.
             </p>
           </div>
         )}
@@ -231,6 +256,7 @@ export function DeploySection({
             disabled={
               !selected ||
               blockedByGate ||
+              blockedByLimit ||
               configProblems.length > 0 ||
               feeWei === undefined ||
               isSigning ||

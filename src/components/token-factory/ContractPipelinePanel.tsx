@@ -19,6 +19,7 @@ import { ProgressRing } from "@/components/ui/ProgressRing";
 import { DeploySection } from "./DeploySection";
 import { cn } from "@/lib/utils/cn";
 import type { AuditFinding, AuditPhase, Phase } from "./useContractPipeline";
+import type { MainnetDeployLimitStatus } from "@/lib/billing/limits";
 
 const SEVERITY_COLOR: Record<AuditFinding["severity"], string> = {
   high: "#EF4444",
@@ -33,6 +34,7 @@ interface ContractPipelinePanelProps {
   onRunAudit: () => void;
   /** Optional flavor line under the brain graphic while generating. */
   loadingSubtext?: string;
+  mainnetLimitStatus: MainnetDeployLimitStatus | null;
 }
 
 /**
@@ -47,6 +49,7 @@ export function ContractPipelinePanel({
   audit,
   onRunAudit,
   loadingSubtext,
+  mainnetLimitStatus,
 }: ContractPipelinePanelProps) {
   const [tab, setTab] = useState<"summary" | "code">("summary");
   const [copied, setCopied] = useState(false);
@@ -344,6 +347,7 @@ export function ContractPipelinePanel({
           deployConfig={phase.contract.deploy_config}
           canDeployMainnet={audit.kind === "completed" && audit.passesGate}
           auditOverallScore={audit.kind === "completed" ? audit.overallScore : null}
+          mainnetLimitStatus={mainnetLimitStatus}
         />
       )}
     </>

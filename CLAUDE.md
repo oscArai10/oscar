@@ -361,14 +361,103 @@ redirect URL for email confirmation / magic links to land back in-app.
     Type-check and production build both clean (after another `rm -rf
     .next` — the dev-cache-corruption lesson from step 12 held).
 
+14. **Paddle billing (Pro tier)** — built & live-tested against sandbox
+    plumbing; NOT yet connected to a real Paddle account (none exists —
+    user confirmed "no, not yet"). Pricing is a "reasonable default to
+    unblock the plumbing," NOT a final business decision — user picked
+    this over supplying real numbers: Free = 1 mainnet deploy/month
+    (unlimited testnet, generation, and audits); Pro = $19/mo unlimited
+    mainnet + priority AI/audit (the "priority" claims are aspirational
+    copy only — nothing actually queues/deprioritizes Free users today).
+    Single source of truth: `src/lib/billing/plans.ts` — change the
+    numbers there, nowhere else.
+    `supabase/schema.sql`: added `paddle_customer_id`,
+    `paddle_subscription_id`, `subscription_status` to `profiles` (with
+    `alter table ... add column if not exists` migration statements since
+    the live table already existed) — protected by the same
+    self-escalation-proof RLS pattern as `tier`/`role` (users can't write
+    these columns even via their own authenticated session; only the
+    webhook, via the service-role client, can).
+    **Owner action required before this schema change takes effect on
+    the live project:** re-run the updated `supabase/schema.sql` in the
+    Supabase SQL editor — no programmatic way to run raw DDL against the
+    live project exists from here (no direct Postgres connection string,
+    only the REST API + service-role key).
+    `src/lib/billing/`: `paddleClient.ts` (sandbox/production API base
+    switch via `PADDLE_ENVIRONMENT`, real HMAC-SHA256 webhook signature
+    verification per Paddle's `ts=...;h1=...` format, customer-portal
+    session creation), `limits.ts` (`getMainnetDeployLimitStatus()` —
+    real exact count of the signed-in user's mainnet deploys since the
+    start of the current UTC month).
+    `/api/webhooks/paddle` — the ONLY place tier/paddle_* columns are
+    ever written; verifies the signature before trusting the payload,
+    maps `custom_data.app_user_id` (passed at Paddle.js checkout time)
+    back to the profile row, sets tier pro/free on
+    subscription.created/updated/activated vs canceled/paused.
+    `/api/billing/portal` — authenticated route returning a Paddle
+    customer-portal URL for Pro users to self-manage/cancel.
+    `PaddleCheckoutButton.tsx` (lazy-loads `@paddle/paddle-js` on click,
+    not on page load) and `ManageSubscriptionButton.tsx` — both fail
+    gracefully with a friendly message when Paddle isn't configured yet,
+    matching the Slither/Alchemy pattern, rather than crashing.
+    `/dashboard/settings` replaces its Coming Soon stub with a real
+    Billing page (current plan, usage-this-month, upgrade/manage
+    button). Landing page gets a new `PricingSection` (Free vs Pro cards)
+    using the same `plans.ts`.
+    Mainnet-deploy gating threads `mainnetLimitStatus` from each page
+    (`token-factory/page.tsx`, `memecoin-factory/page.tsx`, both server
+    components) down through `TokenFactoryClient`/`MemecoinFactoryClient`
+    → `ContractPipelinePanel` → `DeploySection`, which blocks the Deploy
+    button and shows an upgrade prompt when a Free user has hit their
+    monthly mainnet limit (same pattern as the existing audit-score
+    gate).
+    **Verified live** with a temp Supabase user (deleted after, cascade
+    confirmed): Settings page correctly showed "Current plan: Free" and
+    "0/1 mainnet deploys used this month"; clicking Upgrade correctly
+    showed "Pro checkout isn't set up yet" (no real Paddle
+    client-token/price-id configured); after seeding one real mainnet
+    deployment, Settings correctly updated to "1/1". The webhook's HMAC
+    verification was unit-tested in isolation (valid signature accepted,
+    tampered body / wrong secret / missing header all correctly
+    rejected) since no real Paddle webhook can be sent without a live
+    account. **NOT verified live:** the actual DeploySection mainnet-
+    limit banner/disabled-button — no mainnet chain has a `factoryAddress`
+    yet (same real-world gap noted since step 9), so no mainnet option
+    exists in the deploy chain selector to trigger it against. The
+    underlying data (limit status computation) is proven correct via the
+    Settings page render; the JSX gating logic is simple, type-checked,
+    and reviewed, but not eyeballed live.
+    Incident during this step: running `npm install` (adding
+    `@paddle/paddle-js`) while the dev preview server was active
+    corrupted `.next` the same way `npm run build` did in step 12 —
+    fixed the same way (stop server, `rm -rf .next`, restart). **Broadened
+    rule: don't run `npm install` OR `npm run build` while the dev
+    preview server is active.**
+
+Open items before Paddle can process a real payment:
+- Owner needs an actual Paddle account (sandbox to start) with a
+  Product/Price created, then paste `PADDLE_API_KEY`,
+  `PADDLE_WEBHOOK_SECRET`, `NEXT_PUBLIC_PADDLE_CLIENT_TOKEN`, and
+  `NEXT_PUBLIC_PADDLE_PRICE_ID_PRO` into `.env.local` (see
+  `.env.example` for the full list — same "owner action I can't do"
+  pattern as the Slither service / Alchemy key).
+- Re-run `supabase/schema.sql` in the Supabase SQL editor to add the new
+  `profiles` columns (see above).
+- Register the webhook URL (`/api/webhooks/paddle`) in the Paddle
+  dashboard once a real domain/tunnel exists to receive it.
+- Real pricing numbers are still a placeholder — revisit before charging
+  anyone real money.
+
 ### Next steps (build order not yet done)
 
-**PAUSED HERE (2026-07-07) — oscAr CORE + SENTINEL (step 13) built &
-live-tested. Next net-new feature: confirm with the user — remaining:
-Paddle/Lemon Squeezy Pro, PWA finalization, security hardening pass.
-(Embeddable public audit-score badges and CORE's "user management" /
-SENTINEL's "abuse monitoring" variants were considered but NOT
-chosen/built — could revisit later.)**
+**PAUSED HERE (2026-07-07) — Paddle billing plumbing (step 14) built,
+but genuinely blocked on the owner: no Paddle account exists yet, so
+nothing past the sandbox-shaped plumbing can be tested for real. Next
+net-new feature: confirm with the user — remaining: PWA finalization,
+security hardening pass. (Embeddable public audit-score badges, CORE's
+"user management" / SENTINEL's "abuse monitoring" variants, and real
+Paddle pricing were all considered/deferred — see their respective
+steps above.)**
 
 Context from the deploy milestone earlier the same day:
 
@@ -412,10 +501,11 @@ Open items before/alongside feature work:
 
 The live deploy is confirmed working, the Memecoin Factory is done (step
 10), the full landing page is done (step 11), achievement badges are
-done (step 12), and oscAr CORE + SENTINEL is done (step 13 above).
-Remaining net-new feature work: Paddle/Lemon Squeezy Pro, PWA
-finalization, security hardening pass. Confirm with the user which to
-pick up first — don't assume.
+done (step 12), oscAr CORE + SENTINEL is done (step 13), and the Paddle
+billing plumbing is done (step 14 above) — genuinely blocked on the
+owner setting up a real Paddle account before it can be tested further.
+Remaining net-new feature work: PWA finalization, security hardening
+pass. Confirm with the user which to pick up first — don't assume.
 
 Deferred / later:
 

@@ -3,6 +3,7 @@ import { LandingNav } from "@/components/landing/LandingNav";
 import { LandingPromptBar } from "@/components/landing/LandingPromptBar";
 import { FeatureGrid } from "@/components/landing/FeatureGrid";
 import { HowItWorks } from "@/components/landing/HowItWorks";
+import { PricingSection } from "@/components/landing/PricingSection";
 import { LandingFooter } from "@/components/landing/LandingFooter";
 
 export default async function Home() {
@@ -38,6 +39,7 @@ export default async function Home() {
 
       <HowItWorks />
       <FeatureGrid />
+      <PricingSection isAuthed={isAuthed} />
       <LandingFooter isAuthed={isAuthed} />
     </main>
   );

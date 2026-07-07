@@ -5,6 +5,7 @@ import { Send } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { ContractPipelinePanel } from "./ContractPipelinePanel";
 import { useContractPipeline } from "./useContractPipeline";
+import type { MainnetDeployLimitStatus } from "@/lib/billing/limits";
 
 const QUICK_CHIPS: { label: string; prompt: string }[] = [
   {
@@ -29,7 +30,13 @@ const QUICK_CHIPS: { label: string; prompt: string }[] = [
   },
 ];
 
-export function TokenFactoryClient({ initialPrompt }: { initialPrompt?: string }) {
+export function TokenFactoryClient({
+  initialPrompt,
+  mainnetLimitStatus,
+}: {
+  initialPrompt?: string;
+  mainnetLimitStatus: MainnetDeployLimitStatus | null;
+}) {
   const [prompt, setPrompt] = useState(initialPrompt ?? "");
   const { phase, audit, generate, runAudit } = useContractPipeline();
 
@@ -85,7 +92,12 @@ export function TokenFactoryClient({ initialPrompt }: { initialPrompt?: string }
         </div>
       </Card>
 
-      <ContractPipelinePanel phase={phase} audit={audit} onRunAudit={runAudit} />
+      <ContractPipelinePanel
+        phase={phase}
+        audit={audit}
+        onRunAudit={runAudit}
+        mainnetLimitStatus={mainnetLimitStatus}
+      />
     </div>
   );
 }
