@@ -5,7 +5,7 @@ const STEPS: { icon: typeof MessageSquare; title: string; description: string }[
     icon: MessageSquare,
     title: "1. Describe it",
     description:
-      "Type what you want in plain English — supply, taxes, limits, owner powers. oscAr AI turns it into real Solidity.",
+      "Type what you want, future billionaire — supply, taxes, limits, owner powers. oscAr AI turns it into real Solidity.",
   },
   {
     icon: ScanSearch,
