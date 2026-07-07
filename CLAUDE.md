@@ -286,12 +286,40 @@ redirect URL for email confirmation / magic links to land back in-app.
     once signed in. Verified responsive at mobile width. Type-check and
     production build both clean.
 
+12. **Achievement badges** — built & live-tested. User picked "user
+    achievement badges" (gamification on the dashboard) over the other
+    option offered (embeddable public audit-score badges) — that other
+    idea is NOT built, may be worth revisiting later as a separate
+    feature. `src/lib/dashboard/badges.ts` (`getBadges()`) derives 7
+    badges purely from real `deployments`/`audit_reports` data — exact
+    Supabase counts (not the dashboard's capped 50-row list, so users
+    past that cap still earn correctly): First Deploy, Security
+    Conscious (ran ≥1 audit), Mainnet Pioneer (≥1 mainnet deploy), 5
+    Tokens Launched, Multi-Chain Deployer (≥3 distinct chains), Perfect
+    Audit Score (any audit = 100/100), 10 Tokens Launched. No fabricated
+    stats — every badge is a real threshold on real rows.
+    `src/components/dashboard/BadgesCard.tsx` renders them as a grid on
+    the main `/dashboard` page (earned = cyan + lit icon; locked = dimmed
+    + lock overlay), title shows "Achievements (n/7)".
+    Verified live as a temp Supabase user (deleted after, cascade
+    confirmed): seeded 3 real deployments (1 mainnet, 3 distinct chains)
+    + 1 audit at 100/100 → dashboard correctly showed "Achievements
+    (5/7)" with exactly the right 5 earned (not 5/10 tokens) and the
+    right 2 still locked.
+    Incident during this verification: running `npm run build` while the
+    `oscar-dev` preview server was still running corrupted its `.next`
+    dev cache (missing webpack chunks, login page became unresponsive to
+    clicks) — fixed by stopping the preview server, `rm -rf .next`, and
+    restarting. **Going forward: never run `npm run build` while the
+    dev preview server is active; stop it first, build, then restart.**
+
 ### Next steps (build order not yet done)
 
-**PAUSED HERE (2026-07-07) — full landing page (step 11) built &
+**PAUSED HERE (2026-07-07) — achievement badges (step 12) built &
 live-tested. Next net-new feature: confirm with the user — remaining:
-badges, Paddle/Lemon Squeezy Pro, oscAr CORE + SENTINEL, PWA
-finalization, security hardening pass.**
+Paddle/Lemon Squeezy Pro, oscAr CORE + SENTINEL, PWA finalization,
+security hardening pass. (Embeddable public audit-score badges were
+considered but NOT chosen/built — could revisit later.)**
 
 Context from the deploy milestone earlier the same day:
 
@@ -334,10 +362,10 @@ Open items before/alongside feature work:
   work (injected connector), mobile/QR wallets don't.
 
 The live deploy is confirmed working, the Memecoin Factory is done (step
-10), and the full landing page is done (step 11 above). Remaining
-net-new feature work: badges, Paddle/Lemon Squeezy Pro, oscAr CORE +
-SENTINEL, PWA finalization, security hardening pass. Confirm with the
-user which to pick up first — don't assume.
+10), the full landing page is done (step 11), and achievement badges are
+done (step 12 above). Remaining net-new feature work: Paddle/Lemon
+Squeezy Pro, oscAr CORE + SENTINEL, PWA finalization, security hardening
+pass. Confirm with the user which to pick up first — don't assume.
 
 Deferred / later:
 

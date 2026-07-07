@@ -2,6 +2,7 @@ import { Coins, FlaskConical, ShieldCheck, ShieldAlert, Network, ExternalLink } 
 import { WelcomeBanner } from "@/components/dashboard/WelcomeBanner";
 import { PulseAssistantCard } from "@/components/dashboard/PulseAssistantCard";
 import { GasPriceWidget } from "@/components/dashboard/GasPriceWidget";
+import { BadgesCard } from "@/components/dashboard/BadgesCard";
 import { StatCard } from "@/components/ui/StatCard";
 import { Card } from "@/components/ui/Card";
 import { DataTable } from "@/components/ui/DataTable";
@@ -11,6 +12,7 @@ import { LiveLineChart } from "@/components/ui/LiveLineChart";
 import { ActivityFeed } from "@/components/ui/ActivityFeed";
 import { getCurrentUserProfile } from "@/lib/supabase/profile";
 import { getDashboardData } from "@/lib/dashboard/data";
+import { getBadges } from "@/lib/dashboard/badges";
 
 // Gas prices need a separate Alchemy integration (real-time RPC, not
 // Supabase-backed) — still a placeholder until that build step.
@@ -25,7 +27,11 @@ const gasEntries = [
 const activityLabels = ["00:00", "06:00", "12:00", "18:00", "24:00"];
 
 export default async function DashboardPage() {
-  const [profile, data] = await Promise.all([getCurrentUserProfile(), getDashboardData()]);
+  const [profile, data, badges] = await Promise.all([
+    getCurrentUserProfile(),
+    getDashboardData(),
+    getBadges(),
+  ]);
 
   const now = new Date();
   const dateLabel = now.toLocaleDateString("en-US", {
@@ -85,6 +91,8 @@ export default async function DashboardPage() {
           subLabel="EVM chains"
         />
       </div>
+
+      <BadgesCard badges={badges} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
