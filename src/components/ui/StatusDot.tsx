@@ -6,6 +6,10 @@ const STATUS_STYLES = {
   live: { dot: "bg-status-green", text: "text-status-green", label: "Live" },
   failed: { dot: "bg-status-red", text: "text-status-red", label: "Failed" },
   pending: { dot: "bg-status-gold", text: "text-status-gold", label: "Pending" },
+  healthy: { dot: "bg-status-green", text: "text-status-green", label: "Healthy" },
+  degraded: { dot: "bg-status-gold", text: "text-status-gold", label: "Degraded" },
+  unreachable: { dot: "bg-status-red", text: "text-status-red", label: "Unreachable" },
+  not_configured: { dot: "bg-text-muted", text: "text-text-muted", label: "Not Configured" },
 } as const;
 
 interface StatusDotProps {

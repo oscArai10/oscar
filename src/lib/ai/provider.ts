@@ -23,6 +23,25 @@ const OPENAI_MODEL = "gpt-4o";
 const FAILURE_THRESHOLD = 2;
 const CLAUDE_RECHECK_MS = 60_000;
 
+export interface AIHealthStatus {
+  claudeConfigured: boolean;
+  gpt4oConfigured: boolean;
+  /** Currently routing generation calls to GPT-4o due to repeated Claude failures. */
+  failedOver: boolean;
+  consecutiveClaudeFailures: number;
+}
+
+/** Real in-memory failover state — no extra API call, just what oscAr AI
+ *  actually observed on its last requests in this server instance. */
+export function getAIHealthStatus(): AIHealthStatus {
+  return {
+    claudeConfigured: !!process.env.ANTHROPIC_API_KEY,
+    gpt4oConfigured: !!process.env.OPENAI_API_KEY,
+    failedOver: state.consecutiveClaudeFailures >= FAILURE_THRESHOLD,
+    consecutiveClaudeFailures: state.consecutiveClaudeFailures,
+  };
+}
+
 export class OscarAIUnavailableError extends Error {
   constructor() {
     super("oscAr AI is updating — try again in a few minutes.");

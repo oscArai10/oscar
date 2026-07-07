@@ -313,13 +313,62 @@ redirect URL for email confirmation / magic links to land back in-app.
     restarting. **Going forward: never run `npm run build` while the
     dev preview server is active; stop it first, build, then restart.**
 
+13. **oscAr CORE + SENTINEL** — built & live-tested. User picked "ops
+    overview" for CORE (platform totals + user list + activity feed, NOT
+    the "user management with promote/demote" variant) and "system
+    health monitoring" for SENTINEL (NOT abuse/safety monitoring — that
+    idea is not built, could be a separate later feature).
+    New top-level surface at `/core` (separate from `/dashboard`, per the
+    "PULSE/CORE split is STRUCTURAL" design from the auth step) —
+    `src/middleware.ts` now also gates `/core/:path*`: no session → 
+    `/login`; session but `role !== 'owner'` (checked via a live query
+    against `profiles`) → redirected to `/dashboard`. This is
+    defense-in-depth on top of the real enforcement, which is RLS itself
+    — `src/lib/core/data.ts` uses the owner's own authenticated Supabase
+    session (NOT the service-role client); every table's
+    `*_select_own_or_owner` policy is what actually lets an owner read
+    every user's rows, so even a middleware bypass couldn't leak data to
+    a non-owner query.
+    `src/app/core/` — `layout.tsx` + `CoreSidebar` (purple-branded,
+    distinct from PULSE's cyan) with Overview / Users / SENTINEL nav:
+    - `/core` (Overview): total users, total deployments, mainnet
+      deployments, distinct chains, avg audit score — all exact counts
+      across every user — plus a merged, time-sorted activity feed of
+      recent deployments+audits platform-wide.
+    - `/core/users`: every signed-up user (email, tier, role, deployment
+      count, last-active derived from their most recent deployment).
+    - `/core/sentinel`: live health checks, not a static "operational"
+      banner — `getAIHealthStatus()` (new export in
+      `src/lib/ai/provider.ts`) reports real in-memory failover state
+      (no extra API call); `checkSlitherHealth()` (new export in
+      `src/lib/audit/slitherClient.ts`) pings the service's real
+      unauth'd `/health` route; Supabase is checked with a live query;
+      Alchemy is checked with a live `eth_blockNumber` RPC call. Every
+      status is either "healthy", "degraded", "unreachable", or
+      "not_configured" — never a fabricated "all good".
+    Verified live end-to-end with two temp Supabase users (both deleted
+    after, cascades confirmed): a regular user hitting `/core` was
+    correctly redirected to `/dashboard`; after promoting a second user
+    to `role='owner'` (via service-role update — self-escalation is
+    blocked by RLS, confirming the schema's design note), that user
+    reached `/core` and saw the REAL correct platform totals spanning
+    all 3 real users at the time (3 users, 3 deployments, 2 chains, 1
+    audit at 87) with a correctly time-sorted cross-user activity feed —
+    proving the RLS-based owner read actually works, not just gated by
+    middleware. SENTINEL matched known real state exactly: Claude/GPT-4o/
+    Supabase healthy, Slither and Alchemy both "not_configured" (matching
+    the still-empty env vars noted earlier in this file).
+    Type-check and production build both clean (after another `rm -rf
+    .next` — the dev-cache-corruption lesson from step 12 held).
+
 ### Next steps (build order not yet done)
 
-**PAUSED HERE (2026-07-07) — achievement badges (step 12) built &
+**PAUSED HERE (2026-07-07) — oscAr CORE + SENTINEL (step 13) built &
 live-tested. Next net-new feature: confirm with the user — remaining:
-Paddle/Lemon Squeezy Pro, oscAr CORE + SENTINEL, PWA finalization,
-security hardening pass. (Embeddable public audit-score badges were
-considered but NOT chosen/built — could revisit later.)**
+Paddle/Lemon Squeezy Pro, PWA finalization, security hardening pass.
+(Embeddable public audit-score badges and CORE's "user management" /
+SENTINEL's "abuse monitoring" variants were considered but NOT
+chosen/built — could revisit later.)**
 
 Context from the deploy milestone earlier the same day:
 
@@ -362,10 +411,11 @@ Open items before/alongside feature work:
   work (injected connector), mobile/QR wallets don't.
 
 The live deploy is confirmed working, the Memecoin Factory is done (step
-10), the full landing page is done (step 11), and achievement badges are
-done (step 12 above). Remaining net-new feature work: Paddle/Lemon
-Squeezy Pro, oscAr CORE + SENTINEL, PWA finalization, security hardening
-pass. Confirm with the user which to pick up first — don't assume.
+10), the full landing page is done (step 11), achievement badges are
+done (step 12), and oscAr CORE + SENTINEL is done (step 13 above).
+Remaining net-new feature work: Paddle/Lemon Squeezy Pro, PWA
+finalization, security hardening pass. Confirm with the user which to
+pick up first — don't assume.
 
 Deferred / later:
 

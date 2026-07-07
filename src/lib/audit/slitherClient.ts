@@ -20,6 +20,25 @@ export type SlitherResult =
   | { status: "ok"; findings: SlitherFinding[] };
 
 const TIMEOUT_MS = 100_000;
+const HEALTH_TIMEOUT_MS = 5_000;
+
+export type SlitherHealth = "healthy" | "unreachable" | "not_configured";
+
+/** Real live ping to the service's unauthenticated /health route — for
+ *  SENTINEL's system health board, not for the audit path itself. */
+export async function checkSlitherHealth(): Promise<SlitherHealth> {
+  const url = process.env.SLITHER_SERVICE_URL;
+  if (!url) return "not_configured";
+
+  try {
+    const res = await fetch(`${url.replace(/\/$/, "")}/health`, {
+      signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
+    });
+    return res.ok ? "healthy" : "unreachable";
+  } catch {
+    return "unreachable";
+  }
+}
 
 export async function analyzeContract(
   sourceCode: string,
