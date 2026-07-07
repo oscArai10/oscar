@@ -498,13 +498,107 @@ Open items before Paddle can process a real payment:
 - Real pricing numbers are still a placeholder — revisit before charging
   anyone real money.
 
+16. **Security hardening pass** — built & verified. First attempt at a
+    subagent-based audit hit a session usage limit before producing any
+    findings — did the audit directly instead (API routes, headers,
+    middleware, RLS, secrets handling, `npm audit`, XSS/SSRF vectors,
+    rate-limit coverage), reading the real source rather than trusting
+    a canned checklist.
+    - **Real finding: `POST /api/deployments` trusted the client for
+      almost everything** — `chain` accepted any string (polluting the
+      "chains used" stats with junk), and `audit_score` was taken
+      straight from the request body, meaning an authenticated user
+      could POST a fabricated row and fraudulently earn the "Mainnet
+      Pioneer" or "Perfect Audit Score" achievement badges without ever
+      deploying or auditing anything, since this table also feeds CORE's
+      admin stats and the public token page. Fixed: `chain` now must
+      match a real `OSCAR_CHAINS` key, `contract_address`/`tx_hash` are
+      format-validated (regex), and `audit_score` is no longer accepted
+      from the client at all — it's looked up server-side from the
+      user's own most recent real `audit_reports` row instead.
+      **Not fixed (flagged as real follow-up work, not attempted here):**
+      full on-chain proof that a deployment actually happened — decoding
+      the factory's real `TokenDeployed` event from the transaction
+      receipt, mirroring what `/api/verify-contract` already does, and
+      handling EIP-7702 relayed transactions the same way `task_6f7a3511`
+      is meant to fix there. Format validation closes the cheap/obvious
+      spoofing path; a user could still fabricate a syntactically-valid
+      fake tx hash/address today.
+    - **Rate limiting was only on `/api/generate` and `/api/audit`.**
+      Added to `/api/deployments`, `/api/verify-contract`,
+      `/api/auth/nonce`, `/api/auth/siwe`, and `/api/billing/portal`.
+      `src/lib/ratelimit.ts` was refactored from one shared global bucket
+      to named per-route buckets (`generate`/`audit` stay strict at 5-per-
+      5-min since they're expensive AI calls; the rest get a more
+      generous 15–20-per-5-min) — a single shared bucket would have meant
+      a legitimate user's normal flow (nonce → sign in → generate → audit
+      → deploy) could trip one expensive-call limit well before actually
+      abusing anything, a real functional regression a hardening pass
+      should not introduce.
+    - **Added a real Content-Security-Policy and HSTS** to
+      `next.config.mjs` (neither existed before — only X-Frame-Options/
+      X-Content-Type-Options/Referrer-Policy/Permissions-Policy did).
+      Deliberately NOT maximally strict: wagmi's default RPC transports
+      hit whichever public RPC each of the 20 chains happens to use, with
+      no fixed enumerable domain list, and wallet SDKs commonly need
+      `'unsafe-eval'`/`'unsafe-inline'` — so `connect-src`/`script-src`
+      stay broad. Still meaningfully restricts `default-src`,
+      `object-src`, `frame-ancestors`, and `base-uri`. **Verified:** zero
+      CSP console violations on the landing page, login page (including
+      opening the real RainbowKit "Connect a Wallet" modal — Rainbow/
+      Base/MetaMask/WalletConnect all listed correctly), dashboard,
+      Settings/Billing (including clicking Upgrade to Pro), Token
+      Factory, and `/core` + `/core/sentinel` as a real promoted owner
+      test user. **NOT verified:** an actual WalletConnect relay
+      connection or a real wallet's live RPC calls — no wallet extension
+      exists in this environment. Watch the console for CSP violations
+      the first time a real wallet connects.
+    - **`npm audit`: 32 vulnerabilities (26 moderate, 6 high), zero of
+      them fixable by plain `npm audit fix`** — confirmed via dry run,
+      every single one requires `--force`, which here means a major
+      version bump (`next` 14→16, dragging `wagmi`/`@rainbow-me/
+      rainbowkit`/`@ducanh2912/next-pwa` with it). Deliberately NOT
+      attempted — an unprompted 2-major-version Next.js upgrade across an
+      app this size is a real migration project of its own (breaking
+      App Router/config changes are likely), not something to slip into
+      a hardening pass. `next` itself carries several HIGH-severity
+      advisories worth knowing about specifically: an SSRF via WebSocket
+      upgrades (CVSS 8.6), a middleware/proxy auth bypass in i18n Pages
+      Router apps (CVSS 7.5, not applicable here — this app doesn't use
+      Pages Router i18n), and a couple of Server Components DoS issues
+      (CVSS 7.5). Flag for a deliberately-scoped upgrade + full regression
+      test later, not a same-session fix.
+    - Reviewed and found **no action needed**: RLS policies (every table
+      correctly scoped, self-escalation genuinely blocked, verified
+      against the schema directly); secrets handling (no service-role or
+      API keys logged anywhere, `createAdminClient` only ever imported
+      from server-only files, enforced by its own `import "server-only"`
+      guard); XSS (zero `dangerouslySetInnerHTML` anywhere in `src/`,
+      React's default escaping relied on everywhere including AI-
+      generated Solidity/contract names); SSRF (every server-side
+      `fetch()` to Slither/Alchemy/Paddle/Etherscan is built from env vars
+      or the hardcoded `OSCAR_CHAINS` config, never unvalidated user
+      input); middleware gating (no bypass found in the `/dashboard` +
+      `/core` matcher logic).
+    Type-check and production build both clean (after two more `rm -rf
+    .next` cycles — one from the standing dev-server-vs-build rule, one
+    from an unrelated intermittent Windows filesystem race on a fresh
+    `.next` that resolved on retry).
+
 ### Next steps (build order not yet done)
 
-**PAUSED HERE (2026-07-07) — PWA finalization (step 15) built &
-verified. Next net-new feature: confirm with the user — remaining:
-security hardening pass. (Embeddable public audit-score badges, CORE's
-"user management" / SENTINEL's "abuse monitoring" variants, and real
-Paddle pricing were all considered/deferred — see their respective
+**PAUSED HERE (2026-07-07) — security hardening pass (step 16) built &
+verified. This was the last item in the original build order.** Real
+open items remain (see step 16's "not fixed" notes, `task_6f7a3511`
+EIP-7702 fix, `task_b8920eea` CORE extra security layers, the deferred
+Next.js major-version upgrade, and every "owner action required" item
+scattered through this file — Slither service deploy, Alchemy/Etherscan
+keys, real Paddle account, factory deploys on the other 9 chains) but
+there is no more queued net-new feature work. Confirm with the user
+what's next — likely picking up one of those open items, or a genuinely
+new feature not yet discussed. (Embeddable public audit-score badges,
+CORE's "user management" / SENTINEL's "abuse monitoring" variants, and
+real Paddle pricing were all considered/deferred — see their respective
 steps above.)**
 
 Context from the deploy milestone earlier the same day:
@@ -551,13 +645,16 @@ The live deploy is confirmed working, the Memecoin Factory is done (step
 10), the full landing page is done (step 11), achievement badges are
 done (step 12), oscAr CORE + SENTINEL is done (step 13), the Paddle
 billing plumbing is done (step 14 — genuinely blocked on the owner
-setting up a real Paddle account before it can be tested further), and
-PWA finalization is done (step 15 above). Remaining net-new feature
-work: the security hardening pass. Two background tasks are also
-outstanding from earlier in the day — check their status before
-assuming they're still open: `task_6f7a3511` (EIP-7702 fix for
-`/api/verify-contract`) and `task_b8920eea` (extra CORE admin security
-layers using the long-unused `OSCAR_CORE_*` env vars).
+setting up a real Paddle account before it can be tested further), PWA
+finalization is done (step 15), and the security hardening pass is done
+(step 16 above) — this was the last item in the original build order,
+so there's no more queued net-new feature work; see step 16 for what's
+still genuinely open (deployment-spoofing fix, Next.js major upgrade)
+rather than done. Two background tasks are also outstanding from
+earlier in the day — check their status before assuming they're still
+open: `task_6f7a3511` (EIP-7702 fix for `/api/verify-contract`) and
+`task_b8920eea` (extra CORE admin security layers using the
+long-unused `OSCAR_CORE_*` env vars).
 
 Deferred / later:
 

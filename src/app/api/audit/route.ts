@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
   }
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anonymous";
-  const retryAfter = await checkRateLimit(ip);
+  const retryAfter = await checkRateLimit(ip, "audit");
   if (retryAfter !== null) {
     return NextResponse.json(
       { error: `Too many requests — try again in ${retryAfter}s.` },

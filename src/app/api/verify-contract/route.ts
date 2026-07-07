@@ -5,6 +5,7 @@ import { createPublicClient, http, decodeFunctionData, encodeAbiParameters, type
 import { OSCAR_TOKEN_FACTORY_ABI } from "@/lib/contracts/abi/OscarTokenFactory";
 import { OSCAR_ERC20_ABI } from "@/lib/contracts/abi/OscarERC20";
 import { OSCAR_CHAINS } from "@/lib/chains/chains";
+import { checkRateLimit } from "@/lib/ratelimit";
 
 // Etherscan verification can take a few seconds to accept the submission.
 export const maxDuration = 60;
@@ -40,6 +41,15 @@ export async function POST(req: NextRequest) {
       status: "skipped",
       reason: "Etherscan or Alchemy key not configured yet.",
     });
+  }
+
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anonymous";
+  const retryAfter = await checkRateLimit(ip, "verify-contract");
+  if (retryAfter !== null) {
+    return NextResponse.json(
+      { error: `Too many requests — try again in ${retryAfter}s.` },
+      { status: 429, headers: { "Retry-After": String(retryAfter) } },
+    );
   }
 
   let body: { chainId?: unknown; contractAddress?: unknown; txHash?: unknown };

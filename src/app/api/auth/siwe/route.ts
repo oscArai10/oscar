@@ -3,12 +3,22 @@ import { SiweMessage } from "siwe";
 import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { walletEmail, NONCE_COOKIE } from "@/lib/auth/siwe";
+import { checkRateLimit } from "@/lib/ratelimit";
 
 // Verifies a SIWE signature and, on success, mints a Supabase session for the
 // wallet's user. Flow: verify signature against the stored nonce → find or
 // create the wallet's auth user (service role) → generate a one-time token
 // the client exchanges for a real cookie-based session via verifyOtp.
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anonymous";
+  const retryAfter = await checkRateLimit(ip, "auth");
+  if (retryAfter !== null) {
+    return NextResponse.json(
+      { error: `Too many requests — try again in ${retryAfter}s.` },
+      { status: 429, headers: { "Retry-After": String(retryAfter) } },
+    );
+  }
+
   let body: { message?: unknown; signature?: unknown };
   try {
     body = await req.json();
