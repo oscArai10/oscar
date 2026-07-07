@@ -250,12 +250,48 @@ redirect URL for email confirmation / magic links to land back in-app.
     fee read from the live factory contract. Token Factory re-verified
     working after the refactor; production build clean.
 
+    Follow-up (2026-07-07, same day): the user then did a real live wallet
+    deploy through the Memecoin Factory itself — MoonDog (MOON), 100M
+    supply, Community Treasury vibe. Confirmed on-chain: tx succeeded,
+    `buyTaxBps`/`sellTaxBps` both 200 (2%) matching the vibe preset exactly,
+    `deployments` row landed in Supabase. Two total real deploys now on
+    record (TestDog via Token Factory, MoonDog via Memecoin Factory) — both
+    factories proven live end-to-end with real wallets.
+
+11. **Full landing page** (`/`) — built & live-tested. Replaces the
+    temporary logo+tagline shell. Server component (`src/app/page.tsx`)
+    checks auth once and passes `isAuthed` down; new
+    `src/components/landing/`: `LandingNav` (Log In / Open Dashboard),
+    `LandingPromptBar` (client — the hero prompt bar + quick chips, same
+    copy as the dashboard's PulseAssistantCard), `HowItWorks` (3-step),
+    `FeatureGrid` (6 feature cards: AI generation, 10+ chains, audits,
+    non-custodial, Memecoin Factory, dashboard), `LandingFooter`
+    (Product/Account link columns, real internal links only — no
+    fabricated social/legal links). Pricing section deliberately deferred
+    (user's call — Free/Pro copy needs real Paddle/Lemon Squeezy pricing
+    that doesn't exist yet; add it as its own step later).
+    The prompt bar is fully functional end-to-end, not decorative: typing
+    or picking a chip routes an unauthenticated visitor through
+    `/login?redirect=%2Fdashboard%2Ftoken-factory%3Fprompt%3D...`, and an
+    already-authenticated visitor straight to the prefilled Token Factory.
+    This required threading a `redirectTo` through the whole login path —
+    `LoginPage`/`LoginClient` now take a `redirect` search param instead of
+    a hardcoded `/dashboard`, and `emailRedirectTo` for magic-link/signup
+    confirmation now carries `?next=` through to `/auth/callback` (which
+    already supported `next`). Verified live end-to-end as a temp Supabase
+    user (deleted after): typed a prompt on the signed-out landing page →
+    redirected to `/login?redirect=...` → signed in → landed on
+    `/dashboard/token-factory` with the exact original prompt already in
+    the textarea. Nav/footer correctly flip to "Open Dashboard"/"Dashboard"
+    once signed in. Verified responsive at mobile width. Type-check and
+    production build both clean.
+
 ### Next steps (build order not yet done)
 
-**PAUSED HERE (2026-07-07) — Memecoin Factory (step 10) built &
+**PAUSED HERE (2026-07-07) — full landing page (step 11) built &
 live-tested. Next net-new feature: confirm with the user — remaining:
-full landing page, badges, Paddle/Lemon Squeezy Pro, oscAr CORE +
-SENTINEL, PWA finalization, security hardening pass.**
+badges, Paddle/Lemon Squeezy Pro, oscAr CORE + SENTINEL, PWA
+finalization, security hardening pass.**
 
 Context from the deploy milestone earlier the same day:
 
@@ -281,7 +317,8 @@ relay contract, NOT the factory), which worked fine for deploying but
 WILL break `/api/verify-contract`'s "decode tx.input as deployToken"
 logic once Etherscan/Alchemy keys are set — fix by reading the factory's
 `TokenDeployed` receipt log instead (a background task chip was spawned
-for this).
+for this — task_6f7a3511, running in a separate session as of this
+writing; check its outcome before assuming it's still open).
 
 **Security note:** the deployer private key for `0x8404…3d31` was pasted
 into chat (2026-07-07) — the user explicitly accepted this for
@@ -296,11 +333,11 @@ Open items before/alongside feature work:
 - WalletConnect projectId is still the placeholder — extension wallets
   work (injected connector), mobile/QR wallets don't.
 
-The live deploy is confirmed working and the Memecoin Factory is done
-(step 10 above). Remaining net-new feature work: full landing page,
-badges, Paddle/Lemon Squeezy Pro, oscAr CORE + SENTINEL, PWA
-finalization, security hardening pass. Confirm with the user which to
-pick up first — don't assume.
+The live deploy is confirmed working, the Memecoin Factory is done (step
+10), and the full landing page is done (step 11 above). Remaining
+net-new feature work: badges, Paddle/Lemon Squeezy Pro, oscAr CORE +
+SENTINEL, PWA finalization, security hardening pass. Confirm with the
+user which to pick up first — don't assume.
 
 Deferred / later:
 

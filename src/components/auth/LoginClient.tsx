@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils/cn";
 type Tab = "wallet" | "email";
 type Busy = null | "wallet" | "password" | "magic" | "signup";
 
-export function LoginClient() {
+export function LoginClient({ redirectTo = "/dashboard" }: { redirectTo?: string }) {
   const router = useRouter();
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
@@ -63,7 +63,7 @@ export function LoginClient() {
       });
       if (otpErr) throw otpErr;
 
-      router.push("/dashboard");
+      router.push(redirectTo);
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Wallet sign-in failed.");
@@ -81,7 +81,9 @@ export function LoginClient() {
       const { data, error: err } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectTo)}`,
+        },
       });
       setBusy(null);
       if (err) return setError(err.message);
@@ -89,14 +91,14 @@ export function LoginClient() {
       if (!data.session) {
         return setNotice("Check your email to confirm your account, then sign in.");
       }
-      router.push("/dashboard");
+      router.push(redirectTo);
       router.refresh();
     } else {
       setBusy("password");
       const { error: err } = await supabase.auth.signInWithPassword({ email, password });
       setBusy(null);
       if (err) return setError(err.message);
-      router.push("/dashboard");
+      router.push(redirectTo);
       router.refresh();
     }
   }
@@ -109,7 +111,9 @@ export function LoginClient() {
     const supabase = createClient();
     const { error: err } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectTo)}`,
+      },
     });
     setBusy(null);
     if (err) return setError(err.message);
