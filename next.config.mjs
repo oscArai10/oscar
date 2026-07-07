@@ -1,4 +1,4 @@
-import withPWAInit from "@ducanh2912/next-pwa";
+import withPWAInit, { runtimeCaching } from "@ducanh2912/next-pwa";
 
 const withPWA = withPWAInit({
   dest: "public",
@@ -6,9 +6,15 @@ const withPWA = withPWAInit({
   register: true,
   cacheOnFrontEndNav: true,
   aggressiveFrontEndNavCaching: true,
+  // Fallback document for offline navigation is auto-detected from
+  // src/app/~offline/page.tsx — no explicit `fallbacks` needed.
   workboxOptions: {
     skipWaiting: true,
     clientsClaim: true,
+    // The package's default caching strategies (NetworkFirst for pages/
+    // API calls, CacheFirst for static assets/fonts/images) — without
+    // this, only Next's own JS/CSS build chunks get precached.
+    runtimeCaching,
   },
 });
 

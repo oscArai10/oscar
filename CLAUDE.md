@@ -434,6 +434,56 @@ redirect URL for email confirmation / magic links to land back in-app.
     rule: don't run `npm install` OR `npm run build` while the dev
     preview server is active.**
 
+15. **PWA finalization** — built & verified. A read-only audit first
+    (spawned as an Explore-style agent) found the scaffold's PWA setup
+    was incomplete in ways that would visibly break on real devices:
+    - **Broken maskable icons** — `manifest.json` declared
+      `"purpose": "any maskable"` on `icon-192.png`/`icon-512.png`, but
+      that artwork (the full tree/cube illustration with captions) bleeds
+      to the canvas edge with zero safe-zone padding. Android's adaptive
+      icon masks (circle/squircle) would have cropped the tree top and
+      caption text. Fixed by generating true maskable variants
+      (`icon-maskable-192.png`, `icon-maskable-512.png` via `sharp`,
+      scratch script, not committed) — same real brand art, just
+      recentered at ~62% scale on the `#050816` brand background so all
+      content sits inside the safe zone. Manifest now has 4 icon entries:
+      the original two as `purpose: "any"`, the two new ones as
+      `purpose: "maskable"`. No new artwork was invented — this reuses
+      the existing approved illustration, just composited correctly.
+    - **No runtime caching strategy** — `next.config.mjs` only precached
+      Next's own JS/CSS chunks; nothing cached pages, API responses,
+      fonts, or images. Fixed by wiring the package's own
+      `runtimeCaching` export (`import withPWAInit, { runtimeCaching }
+      from "@ducanh2912/next-pwa"`) into `workboxOptions.runtimeCaching`.
+      Verified in the built `public/sw.js`: 7 NetworkFirst + 7
+      StaleWhileRevalidate + 4 CacheFirst routes now registered.
+    - **No offline fallback page** — added `src/app/~offline/page.tsx`
+      (branded "You're offline" screen, matches the app's dark theme,
+      no data fetching so it always renders). The package auto-detects
+      this exact path/convention; confirmed in the built service worker
+      via `importScripts("/fallback-....js")` and `self.fallback(e)`
+      wired into every route's `handlerDidError`.
+    - **No iOS splash screens** — iOS ignores the web manifest for splash
+      screens entirely; without explicit `apple-touch-startup-image`
+      links the installed app flashes blank white on launch. Generated
+      11 sizes covering the common iPhone/iPad matrix (same brand icon,
+      centered on the brand background) and wired them into
+      `layout.tsx`'s `appleWebApp.startupImage` with the correct
+      device-width/height/pixel-ratio media queries for each.
+    - Minor: added `"scope": "/"` to the manifest. Added
+      `/public/fallback-*.js` (+ `.map`) to `.gitignore` — a new
+      generated-artifact type introduced by the offline-fallback feature
+      that the original PWA `.gitignore` entries didn't anticipate.
+    - One audit finding turned out to be wrong: `src/app/favicon.ico`
+      already existed (Next.js App Router convention file) — no action
+      needed there.
+    Verified: manifest fetch returns all 4 icons + `scope`; all new
+    icon/splash files serve 200; 11 `apple-touch-startup-image` links
+    present in `<head>`; offline page renders correctly in the browser;
+    production build's `sw.js` inspected directly to confirm the runtime
+    caching rules and offline-fallback wiring are real, not just
+    configured-but-inert. Type-check and production build both clean.
+
 Open items before Paddle can process a real payment:
 - Owner needs an actual Paddle account (sandbox to start) with a
   Product/Price created, then paste `PADDLE_API_KEY`,
@@ -450,10 +500,8 @@ Open items before Paddle can process a real payment:
 
 ### Next steps (build order not yet done)
 
-**PAUSED HERE (2026-07-07) — Paddle billing plumbing (step 14) built,
-but genuinely blocked on the owner: no Paddle account exists yet, so
-nothing past the sandbox-shaped plumbing can be tested for real. Next
-net-new feature: confirm with the user — remaining: PWA finalization,
+**PAUSED HERE (2026-07-07) — PWA finalization (step 15) built &
+verified. Next net-new feature: confirm with the user — remaining:
 security hardening pass. (Embeddable public audit-score badges, CORE's
 "user management" / SENTINEL's "abuse monitoring" variants, and real
 Paddle pricing were all considered/deferred — see their respective
@@ -501,11 +549,15 @@ Open items before/alongside feature work:
 
 The live deploy is confirmed working, the Memecoin Factory is done (step
 10), the full landing page is done (step 11), achievement badges are
-done (step 12), oscAr CORE + SENTINEL is done (step 13), and the Paddle
-billing plumbing is done (step 14 above) — genuinely blocked on the
-owner setting up a real Paddle account before it can be tested further.
-Remaining net-new feature work: PWA finalization, security hardening
-pass. Confirm with the user which to pick up first — don't assume.
+done (step 12), oscAr CORE + SENTINEL is done (step 13), the Paddle
+billing plumbing is done (step 14 — genuinely blocked on the owner
+setting up a real Paddle account before it can be tested further), and
+PWA finalization is done (step 15 above). Remaining net-new feature
+work: the security hardening pass. Two background tasks are also
+outstanding from earlier in the day — check their status before
+assuming they're still open: `task_6f7a3511` (EIP-7702 fix for
+`/api/verify-contract`) and `task_b8920eea` (extra CORE admin security
+layers using the long-unused `OSCAR_CORE_*` env vars).
 
 Deferred / later:
 
