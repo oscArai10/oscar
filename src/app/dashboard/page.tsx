@@ -13,24 +13,16 @@ import { ActivityFeed } from "@/components/ui/ActivityFeed";
 import { getCurrentUserProfile } from "@/lib/supabase/profile";
 import { getDashboardData } from "@/lib/dashboard/data";
 import { getBadges } from "@/lib/dashboard/badges";
-
-// Gas prices need a separate Alchemy integration (real-time RPC, not
-// Supabase-backed) — still a placeholder until that build step.
-const gasEntries = [
-  { chain: "Ethereum", gwei: 18, trend: "down" as const },
-  { chain: "Base", gwei: 1, trend: "down" as const },
-  { chain: "BNB Chain", gwei: 3, trend: "up" as const },
-  { chain: "Polygon", gwei: 42, trend: "up" as const },
-  { chain: "Arbitrum", gwei: 1, trend: "down" as const },
-];
+import { getGasPrices } from "@/lib/dashboard/gasPrices";
 
 const activityLabels = ["00:00", "06:00", "12:00", "18:00", "24:00"];
 
 export default async function DashboardPage() {
-  const [profile, data, badges] = await Promise.all([
+  const [profile, data, badges, gasEntries] = await Promise.all([
     getCurrentUserProfile(),
     getDashboardData(),
     getBadges(),
+    getGasPrices(),
   ]);
 
   const now = new Date();

@@ -120,8 +120,8 @@ EVM chains, non-custodial, Claude AI primary / GPT-4o failover, branded
    deployment-activity buckets, recent audit feed) — returns honest empty
    states rather than fabricated numbers. `src/lib/supabase/profile.ts`
    dedupes the profile fetch between layout and page via React `cache()`.
-   Gas Price Widget is the one card still on placeholder data (needs
-   Alchemy, a separate integration).
+   Gas Price Widget was the one card still on placeholder data — now
+   wired to real Alchemy data (see step 17 below).
    Verified live: ran the migration against the real project (confirmed
    RLS actually blocks unauthenticated reads), signed in as a test user,
    generated + audited a real contract (100/100), confirmed the row
@@ -188,9 +188,19 @@ needed):
 - **Honeypot prompt** ("only I can sell…") → HTTP 422, rejected by the
   safety filter with a clear plain-language reason.
 
-Still open: OpenAI fallback key is `insufficient_quota` (untested live —
-fund it to exercise the GPT-4o failover path for real). Security: the
-API keys were pasted into chat, so **rotate both** when convenient.
+Still open: OpenAI fallback key is `insufficient_quota` (429) — the
+GPT-4o *success* path is still unverifiable until the key has real
+quota. But the failover **mechanism** was verified live (2026-07-08):
+temporarily invalidated `ANTHROPIC_API_KEY` (backed up + restored
+byte-for-byte via `.env.local.bak`, real key never printed), fired one
+real `/api/generate` → HTTP 503 with the graceful "oscAr AI is updating"
+message, and the server log confirmed the exact path — the final error
+was `Fallback provider error 429` thrown from `callGpt4o` (provider.ts
+line ~160), proving Claude-failure was detected, GPT-4o was actually
+reached as the fallback, and both-down degraded gracefully. The only
+unproven segment is GPT-4o returning a valid contract (needs quota).
+Security: the API keys were pasted into chat, so **rotate both** when
+convenient.
 
 ### Auth (step 5) — BUILT & live-tested (2026-07-06)
 
@@ -585,6 +595,38 @@ Open items before Paddle can process a real payment:
     from an unrelated intermittent Windows filesystem race on a fresh
     `.next` that resolved on retry).
 
+17. **Gas Price Widget wired to real Alchemy data** — built &
+    live-verified. This was the dashboard's last placeholder card.
+    `src/lib/dashboard/gasPrices.ts` (`getGasPrices()`) calls Alchemy
+    `eth_gasPrice` for all 10 mainnet chains in parallel (per-request
+    timeout, `next: { revalidate: 30 }` so a busy dashboard doesn't
+    hammer 10 RPCs), and only returns chains that actually respond — a
+    failed RPC is dropped, never shown as a fabricated number. The
+    fabricated up/down "trend" arrows were removed entirely: a single
+    snapshot has no direction, and gas magnitude isn't comparable across
+    chains (Polygon's ~285 gwei is cheap, Ethereum's ~0.1 gwei coloring
+    would mislead), so per the "no fake stats" rule the widget now shows
+    only the real current price. `formatGwei()` keeps significant figures
+    for sub-0.001-gwei L2s so a real nonzero price never collapses to a
+    misleading "0" (Scroll rendered "0.00012", not "0"). `GasPriceWidget`
+    dropped its `trend` field and gained an honest empty state ("Live gas
+    prices are unavailable right now") for when Alchemy isn't configured.
+    **`ALCHEMY_API_KEY` is now set in the app's `.env.local`** (the same
+    working key already in `contracts/.env`) — this also partially
+    unblocks `/api/verify-contract` (still needs `ETHERSCAN_API_KEY` +
+    the EIP-7702 fix). Verified live as a temp Supabase user (deleted
+    after): all 10 chains rendered real live values (Ethereum 0.103, Base
+    0.006, Polygon 285, Scroll 0.00012, etc.), zero console errors,
+    type-check + production build clean.
+
+    Also this session: **GPT-4o failover mechanism verified live** (no
+    code change — pure verification). See the "Live API test" section
+    above for the full detail: temporarily broke Claude's key, one real
+    `/api/generate` returned the graceful 503, and the server log proved
+    GPT-4o was actually reached as the fallback (`Fallback provider error
+    429` from `callGpt4o`). Only the GPT-4o *success* path stays unproven
+    until the OpenAI key has real quota.
+
 ### Next steps (build order not yet done)
 
 **PAUSED HERE (2026-07-07) — security hardening pass (step 16) built &
@@ -660,8 +702,6 @@ Deferred / later:
 
 - 2FA (authenticator app) + login history / device management (deferred
   slice of the auth step).
-- Wire the Gas Price Widget to Alchemy (last placeholder on the
-  dashboard).
 - zkSync factory deploy (needs zksolc, deferred separately from the 9
   standard-EVM chains).
 
