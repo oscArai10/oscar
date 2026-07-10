@@ -18,7 +18,7 @@ The permanent AI brain/orb graphic for oscAr is `public/oscar-brain.png`.
 
 ## Project status — resume here
 
-Last updated: 2026-07-07. Build order is being followed step by step; the
+Last updated: 2026-07-10. Build order is being followed step by step; the
 user approves each step before the next. Tech stack, scope, and design
 system are per the v1 master prompt (Next.js 14 + TS + Tailwind, PWA, 10
 EVM chains, non-custodial, Claude AI primary / GPT-4o failover, branded
@@ -533,7 +533,7 @@ Open items before Paddle can process a real payment:
       handling EIP-7702 relayed transactions the same way `task_6f7a3511`
       is meant to fix there. Format validation closes the cheap/obvious
       spoofing path; a user could still fabricate a syntactically-valid
-      fake tx hash/address today.
+      fake tx hash/address today. **Fixed 2026-07-10 — see step 18.**
     - **Rate limiting was only on `/api/generate` and `/api/audit`.**
       Added to `/api/deployments`, `/api/verify-contract`,
       `/api/auth/nonce`, `/api/auth/siwe`, and `/api/billing/portal`.
@@ -626,6 +626,35 @@ Open items before Paddle can process a real payment:
     GPT-4o was actually reached as the fallback (`Fallback provider error
     429` from `callGpt4o`). Only the GPT-4o *success* path stays unproven
     until the OpenAI key has real quota.
+
+18. **On-chain proof for `POST /api/deployments`** (2026-07-10) — built &
+    live-tested. Closes step 16's remaining deployment-spoofing gap: an
+    authenticated user could previously POST a syntactically-valid but
+    fabricated deployment row (feeding badges, CORE stats, and the public
+    token page). New `src/lib/contracts/proveDeployment.ts` fetches the tx
+    receipt via Alchemy and requires the factory's own `TokenDeployed`
+    event (from the chain's real factory address in `chains.ts`) whose
+    `token` arg matches the claimed contract address — receipt logs, NOT
+    `tx.input` decoding, so EIP-7702/relayed smart-account transactions
+    work (unlike `/api/verify-contract`, which still has that bug —
+    `task_6f7a3511`). Fails CLOSED (no Alchemy key / RPC down → row
+    rejected), same rationale as the audit gate. The route now also:
+    takes `token_name`/`token_symbol` from the on-chain event instead of
+    the body, derives `is_mainnet` from the chain key instead of trusting
+    the client, and rejects a tx hash already recorded by ANY user
+    (service-role dup check — otherwise a second user could re-claim
+    someone else's real deployment). `DeploySection` needed no changes
+    (its extra body fields are now simply ignored).
+    Verified live against the real Base Sepolia factory with a temp
+    Supabase user (deleted after; real rows untouched): fabricated tx →
+    400 "not found on chain"; real EIP-7702 TestDog tx + wrong token
+    address → 400 "didn't deploy this token" (proves receipt-log decoding
+    works on relayed txs); real tx + real address → proof passed, then
+    409 duplicate (proof-first ordering means the 409 exercises the full
+    success path); chain without a factory → 400. Type-check + production
+    build clean. Not exercisable live: a brand-new proven insert (needs a
+    fresh on-chain deploy) — that insert path is unchanged from the
+    already-verified flow.
 
 ### Next steps (build order not yet done)
 

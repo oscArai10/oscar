@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { OSCAR_CHAINS } from "@/lib/chains/chains";
+import { proveDeployment } from "@/lib/contracts/proveDeployment";
 import { checkRateLimit } from "@/lib/ratelimit";
 
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
@@ -13,17 +15,14 @@ const TX_HASH_RE = /^0x[a-fA-F0-9]{64}$/;
  * failure here never undoes it; it just means the dashboard won't show the
  * deployment until the user refreshes and the row eventually lands.
  *
- * NOTE: this trusts the caller that a deployment happened at all (chain,
- * is_mainnet, address, and tx hash are only format-validated, not proven
- * against the chain itself) — this data feeds achievement badges, CORE's
- * admin stats, and the public token page, so a malicious authenticated user
- * could POST a fabricated row directly. Full on-chain proof (decode the
- * factory's TokenDeployed event from the tx receipt, mirroring
- * /api/verify-contract's already-real verification, and handling EIP-7702
- * relayed transactions) is real follow-up work, not done here. `audit_score`
- * is NOT trusted from the client below — it's looked up server-side instead,
- * which was the actually-exploitable half of this gap (fabricating a
- * "Perfect Audit Score" badge without ever running one).
+ * Nothing consequential is trusted from the client: the deployment is proven
+ * on-chain via the factory's own TokenDeployed receipt log (proveDeployment —
+ * handles EIP-7702/relayed transactions too), token name/symbol are taken
+ * from that event rather than the body, is_mainnet is derived from the chain
+ * key, a tx hash can only be claimed once across all users, and audit_score
+ * is looked up server-side from the user's own audit history. This data feeds
+ * achievement badges, CORE's admin stats, and the public token page, so the
+ * proof fails CLOSED (no Alchemy key / RPC down → row rejected, not trusted).
  */
 export async function POST(req: NextRequest) {
   let body: unknown;
@@ -35,20 +34,14 @@ export async function POST(req: NextRequest) {
 
   const b = body as {
     contract_name?: unknown;
-    token_name?: unknown;
-    token_symbol?: unknown;
     chain?: unknown;
-    is_mainnet?: unknown;
     contract_address?: unknown;
     tx_hash?: unknown;
   };
 
   if (
     typeof b.contract_name !== "string" ||
-    typeof b.token_name !== "string" ||
-    typeof b.token_symbol !== "string" ||
     typeof b.chain !== "string" ||
-    typeof b.is_mainnet !== "boolean" ||
     typeof b.contract_address !== "string" ||
     typeof b.tx_hash !== "string"
   ) {
@@ -92,6 +85,37 @@ export async function POST(req: NextRequest) {
   const isTestnet = b.chain.endsWith("-testnet");
   const explorerBase = (isTestnet ? chainCfg.testnet : chainCfg.chain).blockExplorers?.default.url;
 
+  // On-chain proof: the tx receipt must contain the factory's own
+  // TokenDeployed event for exactly this token address. Fails closed.
+  const proof = await proveDeployment({
+    chainKey: b.chain,
+    txHash: b.tx_hash as `0x${string}`,
+    contractAddress: b.contract_address as `0x${string}`,
+  });
+  if (!proof.ok) {
+    return NextResponse.json({ error: proof.reason }, { status: proof.status });
+  }
+
+  // One row per on-chain deployment: without this, a second user could
+  // re-claim someone else's (real, proven) transaction as their own. RLS
+  // scopes a user's own query to their own rows, so this check needs the
+  // service-role client to see across users.
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    const admin = createAdminClient();
+    const { data: existing } = await admin
+      .from("deployments")
+      .select("id")
+      .ilike("tx_hash", b.tx_hash)
+      .limit(1)
+      .maybeSingle();
+    if (existing) {
+      return NextResponse.json(
+        { error: "That deployment is already recorded." },
+        { status: 409 },
+      );
+    }
+  }
+
   // Real audit score, looked up server-side from this user's own audit
   // history — never trusted from the request body.
   const { data: latestAudit } = await supabase
@@ -106,10 +130,11 @@ export async function POST(req: NextRequest) {
   const { error } = await supabase.from("deployments").insert({
     user_id: user.id,
     contract_name: b.contract_name,
-    token_name: b.token_name,
-    token_symbol: b.token_symbol,
+    // Name/symbol as actually emitted on-chain, not as claimed by the client.
+    token_name: proof.tokenName,
+    token_symbol: proof.tokenSymbol,
     chain: b.chain,
-    is_mainnet: b.is_mainnet,
+    is_mainnet: !isTestnet,
     status: "active",
     audit_score: latestAudit?.overall_score ?? null,
     contract_address: b.contract_address,
