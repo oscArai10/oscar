@@ -1,5 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  CORE_VERIFIED_COOKIE_NAME,
+  computeCoreVerificationToken,
+  getClientIp,
+  isIpAllowed,
+  timingSafeEqualStr,
+} from "@/lib/core/security";
 
 export async function middleware(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -44,15 +51,50 @@ export async function middleware(request: NextRequest) {
   // here AND by RLS (is_owner()) on every table CORE reads from, so a bypass
   // of this check alone still can't read another user's data.
   if (user && request.nextUrl.pathname.startsWith("/core")) {
+    const toDashboard = () => {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = "/dashboard";
+      return NextResponse.redirect(redirectUrl);
+    };
+
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")
       .eq("id", user.id)
       .maybeSingle();
     if (profile?.role !== "owner") {
-      const redirectUrl = request.nextUrl.clone();
-      redirectUrl.pathname = "/dashboard";
-      return NextResponse.redirect(redirectUrl);
+      return toDashboard();
+    }
+
+    // Optional defense-in-depth layers on top of role=owner — each only
+    // active when its OSCAR_CORE_* env var is set (see .env.example).
+
+    // IP allowlist. Fails closed when configured but the client IP is
+    // unknown (proxy headers absent — e.g. bare `next dev`).
+    const allowedIps = process.env.OSCAR_CORE_ALLOWED_IPS;
+    if (allowedIps && !isIpAllowed(getClientIp(request), allowedIps)) {
+      return toDashboard();
+    }
+
+    // Pin CORE to one exact account, so even a second role=owner row
+    // (e.g. created by a compromised service key) can't reach it.
+    const ownerEmail = process.env.OSCAR_CORE_OWNER_EMAIL;
+    if (ownerEmail && user.email?.toLowerCase() !== ownerEmail.trim().toLowerCase()) {
+      return toDashboard();
+    }
+
+    // Secret-key step-up: a valid HMAC cookie (set by /api/core/verify
+    // after the owner re-enters the CORE key) is required for everything
+    // under /core except the verify page itself.
+    const secret = process.env.OSCAR_CORE_SECRET_KEY;
+    if (secret && !request.nextUrl.pathname.startsWith("/core/verify")) {
+      const cookie = request.cookies.get(CORE_VERIFIED_COOKIE_NAME)?.value ?? "";
+      const expected = await computeCoreVerificationToken(secret, user.id);
+      if (!timingSafeEqualStr(cookie, expected)) {
+        const redirectUrl = request.nextUrl.clone();
+        redirectUrl.pathname = "/core/verify";
+        return NextResponse.redirect(redirectUrl);
+      }
     }
   }
 

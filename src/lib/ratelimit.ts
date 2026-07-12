@@ -11,7 +11,14 @@ import { Redis } from "@upstash/redis";
 // deploy) could trip a single expensive-AI-call limit well before actually
 // abusing anything.
 
-type Bucket = "generate" | "audit" | "deployments" | "verify-contract" | "auth" | "billing";
+type Bucket =
+  | "generate"
+  | "audit"
+  | "deployments"
+  | "verify-contract"
+  | "auth"
+  | "billing"
+  | "core-verify";
 
 const BUCKET_CONFIG: Record<Bucket, { limit: number; window: `${number} ${"s" | "m" | "h"}` }> = {
   // AI generation/audit are expensive (real LLM + Slither calls).
@@ -23,6 +30,8 @@ const BUCKET_CONFIG: Record<Bucket, { limit: number; window: `${number} ${"s" | 
   "verify-contract": { limit: 20, window: "5 m" },
   auth: { limit: 15, window: "5 m" },
   billing: { limit: 15, window: "5 m" },
+  // Secret-guessing surface — keep as strict as the AI buckets.
+  "core-verify": { limit: 5, window: "5 m" },
 };
 
 let redis: Redis | null | undefined;

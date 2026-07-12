@@ -656,6 +656,43 @@ Open items before Paddle can process a real payment:
     fresh on-chain deploy) — that insert path is unchanged from the
     already-verified flow.
 
+19. **oscAr CORE extra security layers** (2026-07-12) — built &
+    live-tested. Wires up the long-unused `OSCAR_CORE_*` env vars (this
+    was `task_b8920eea`'s scope; an untracked, half-finished
+    `src/lib/core/security.ts` helper from that effort was found in the
+    working tree and finished/wired here). Three OPTIONAL defense-in-depth
+    layers on `/core`, each independently enabled by setting its env var
+    and inert when unset (verified: with all three unset, behavior is
+    byte-identical to before), all on TOP of the existing role=owner +
+    RLS gates:
+    - `OSCAR_CORE_ALLOWED_IPS` — comma-separated IP allowlist checked in
+      middleware from `x-forwarded-for`/`x-real-ip`. Fails closed when
+      set but the IP is unknown. NOTE: Next's own server injects the
+      socket IP into x-forwarded-for (localhost = `::1`, not 127.0.0.1)
+      and preserves an upstream-provided one, so in dev the allowlist
+      needs `::1`; `.env.example` documents this. The pre-existing
+      placeholder `OSCAR_CORE_ALLOWED_IPS=127.0.0.1` in `.env.local`
+      (inert until this step existed) was commented out so it doesn't
+      accidentally lock the owner out of /core the moment this shipped.
+    - `OSCAR_CORE_OWNER_EMAIL` — pins /core to one exact account, so even
+      a second role=owner row can't reach it.
+    - `OSCAR_CORE_SECRET_KEY` — step-up verification: middleware requires
+      an httpOnly HMAC cookie (`oscar_core_verified`, 12h,
+      HMAC-SHA256(secret, "oscar-core:<userId>") — user-bound, never the
+      raw secret) for everything under /core except the new
+      `/core/verify` page, where the owner re-enters the key;
+      `POST /api/core/verify` (new, rate-limited 5/5min as a
+      secret-guessing surface, own `core-verify` bucket in ratelimit.ts)
+      timing-safe-compares it and sets the cookie. Web Crypto only, so
+      the same helpers run in Edge middleware and the Node route.
+    Verified live with a temp owner user (deleted after): spoofed-IP
+    fetches proved each layer blocks/passes independently and in order
+    (wrong IP → /dashboard even WITH a valid cookie; right IP + wrong
+    email → /dashboard; right IP + right email + no cookie →
+    /core/verify), wrong key in the real form → "That key isn't correct.",
+    right key → cookie set (confirmed invisible to JS) → /core rendered
+    real platform totals. Type-check + production build clean.
+
 ### Next steps (build order not yet done)
 
 **PAUSED HERE (2026-07-07) — security hardening pass (step 16) built &
@@ -723,9 +760,9 @@ so there's no more queued net-new feature work; see step 16 for what's
 still genuinely open (deployment-spoofing fix, Next.js major upgrade)
 rather than done. Two background tasks are also outstanding from
 earlier in the day — check their status before assuming they're still
-open: `task_6f7a3511` (EIP-7702 fix for `/api/verify-contract`) and
-`task_b8920eea` (extra CORE admin security layers using the
-long-unused `OSCAR_CORE_*` env vars).
+open: `task_6f7a3511` (EIP-7702 fix for `/api/verify-contract`).
+`task_b8920eea` (extra CORE admin security layers) is DONE — completed
+directly in-session as step 19 above.
 
 Deferred / later:
 
