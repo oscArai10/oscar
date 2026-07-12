@@ -721,8 +721,15 @@ Open items before Paddle can process a real payment:
     `ETHERSCAN_API_KEY` is set — unchanged behavior). Type-check +
     production build clean.
 
-21. **Next.js 14 → 16 upgrade** (2026-07-12, branch `upgrade/next-16`,
-    NOT yet merged to master) — built & smoke-tested. Clears the npm audit
+21. **Next.js 14 → 16 upgrade** (2026-07-12, built on branch
+    `upgrade/next-16`, merged to master same day) — built & smoke-tested.
+    Also on that branch: wagmi.ts now skips WalletConnect-based wallets
+    (injected/extension wallets only, no relay connection) until
+    NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is a real 32-hex Reown id — the
+    placeholder id was causing rejected relay subscriptions that Next 16's
+    dev overlay surfaced as loud console-error popups on every page. The
+    full wallet list returns automatically once a real id is set (owner
+    action, still open). Clears the npm audit
     HIGHs flagged in step 16. next 16.2.10 + react/react-dom 19 +
     @types 19 + eslint 9 + eslint-config-next 16. wagmi/RainbowKit
     deliberately NOT bumped to new majors: RainbowKit's latest (2.2.11,
