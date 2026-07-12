@@ -636,8 +636,8 @@ Open items before Paddle can process a real payment:
     event (from the chain's real factory address in `chains.ts`) whose
     `token` arg matches the claimed contract address — receipt logs, NOT
     `tx.input` decoding, so EIP-7702/relayed smart-account transactions
-    work (unlike `/api/verify-contract`, which still has that bug —
-    `task_6f7a3511`). Fails CLOSED (no Alchemy key / RPC down → row
+    work (`/api/verify-contract` had the same bug until step 20 fixed it
+    with this same pattern). Fails CLOSED (no Alchemy key / RPC down → row
     rejected), same rationale as the audit gate. The route now also:
     takes `token_name`/`token_symbol` from the on-chain event instead of
     the body, derives `is_mainnet` from the chain key instead of trusting
@@ -693,6 +693,33 @@ Open items before Paddle can process a real payment:
     right key → cookie set (confirmed invisible to JS) → /core rendered
     real platform totals. Type-check + production build clean.
 
+20. **EIP-7702 fix for `/api/verify-contract`** (2026-07-12) — built &
+    logic-verified. This was `task_6f7a3511`'s scope; checked its spawned
+    session first (branch `claude/friendly-volhard-ebbe92`) — it had NO
+    commits of its own (tip = old master commit), so the task was never
+    finished and was done here instead. The route previously decoded
+    `tx.input` as `deployToken()` and used `tx.from` as the token owner —
+    both wrong for EIP-7702/relayed smart-account transactions (tx.to is
+    a relay contract, tx.input is relay calldata, tx.from is the relayer).
+    Now it mirrors `proveDeployment.ts`: the factory's `TokenDeployed`
+    receipt log proves the tx deployed the claimed token and supplies
+    name/symbol/true owner, and the REST of the constructor's TokenConfig
+    (12 fields) is read from the token's public getters AT THE DEPLOY
+    BLOCK (`blockNumber` on `readContract`) — historical state equals
+    exactly what the constructor set, so verification stays byte-accurate
+    even if the owner later calls setters (or if verification is retried
+    long after deploy). Bonus: the route no longer trusts the caller's
+    contractAddress/txHash pairing at all.
+    Verified against the real EIP-7702 TestDog tx on Base Sepolia via a
+    script making the identical viem calls (receipt.to confirmed to be
+    the relay, not the factory — the exact case that broke the old code):
+    event matched, all 12 historical getters returned TestDog's known
+    config (1B supply, 18 decimals, no taxes, owner = user wallet), and
+    the constructor args encoded cleanly. NOT verifiable end-to-end: the
+    actual Etherscan submission (route exits "skipped" until
+    `ETHERSCAN_API_KEY` is set — unchanged behavior). Type-check +
+    production build clean.
+
 ### Next steps (build order not yet done)
 
 **PAUSED HERE (2026-07-07) — security hardening pass (step 16) built &
@@ -730,11 +757,10 @@ wallet, 0.0001 ETH fee collected); owner holds the full 1B supply
 `/token/base-testnet/0xa0E4…` renders correctly. Notable: MetaMask used
 an **EIP-7702 smart account** (type-4 tx via a relayer — tx `to` is a
 relay contract, NOT the factory), which worked fine for deploying but
-WILL break `/api/verify-contract`'s "decode tx.input as deployToken"
-logic once Etherscan/Alchemy keys are set — fix by reading the factory's
-`TokenDeployed` receipt log instead (a background task chip was spawned
-for this — task_6f7a3511, running in a separate session as of this
-writing; check its outcome before assuming it's still open).
+WOULD have broken `/api/verify-contract`'s original "decode tx.input as
+deployToken" logic — FIXED in step 20 (2026-07-12) by reading the
+factory's `TokenDeployed` receipt log instead (task_6f7a3511's spawned
+session never committed anything; the fix was done in-session).
 
 **Security note:** the deployer private key for `0x8404…3d31` was pasted
 into chat (2026-07-07) — the user explicitly accepted this for
@@ -742,10 +768,11 @@ testnet-only use. That wallet/key must NEVER be promoted to mainnet
 deployer; generate a fresh wallet (offline) when mainnet deploys happen.
 
 Open items before/alongside feature work:
-- `ALCHEMY_API_KEY` + `ETHERSCAN_API_KEY` in the app's `.env.local` are
-  still empty — `/api/verify-contract` returns `{status:"skipped"}` until
-  both are set (and needs the EIP-7702 fix above to work for
-  smart-account wallets).
+- `ETHERSCAN_API_KEY` in the app's `.env.local` is still empty
+  (`ALCHEMY_API_KEY` is set as of step 17) — `/api/verify-contract`
+  returns `{status:"skipped"}` until it's set. The EIP-7702 fix (step 20)
+  is done, so once the key exists verification should work for
+  smart-account wallets too.
 - WalletConnect projectId is still the placeholder — extension wallets
   work (injected connector), mobile/QR wallets don't.
 
@@ -760,9 +787,10 @@ so there's no more queued net-new feature work; see step 16 for what's
 still genuinely open (deployment-spoofing fix, Next.js major upgrade)
 rather than done. Two background tasks are also outstanding from
 earlier in the day — check their status before assuming they're still
-open: `task_6f7a3511` (EIP-7702 fix for `/api/verify-contract`).
-`task_b8920eea` (extra CORE admin security layers) is DONE — completed
-directly in-session as step 19 above.
+open: BOTH are now DONE — `task_b8920eea` (extra CORE admin security
+layers) as step 19, and `task_6f7a3511` (EIP-7702 fix for
+`/api/verify-contract`) as step 20; its spawned session/branch produced
+no commits and can be archived.
 
 Deferred / later:
 

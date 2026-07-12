@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createPublicClient, http, decodeFunctionData, encodeAbiParameters, type Chain } from "viem";
+import { createPublicClient, http, encodeAbiParameters, parseEventLogs, type Chain } from "viem";
 import { OSCAR_TOKEN_FACTORY_ABI } from "@/lib/contracts/abi/OscarTokenFactory";
 import { OSCAR_ERC20_ABI } from "@/lib/contracts/abi/OscarERC20";
 import { OSCAR_CHAINS } from "@/lib/chains/chains";
@@ -24,10 +24,16 @@ const EVM_VERSION = "paris";
  * file (src/lib/contracts/OscarERC20.flattened.sol) covers every
  * verification; only the constructor args need to be derived per-token.
  *
- * Those args are decoded from the actual on-chain deployToken() transaction
- * rather than trusted from the caller, so verification always matches what
- * was really deployed (the factory overrides `owner` to the caller, which
- * we mirror here using the transaction's `from` address).
+ * Those args are reconstructed from the chain itself rather than trusted
+ * from the caller: the factory's own TokenDeployed receipt log proves the
+ * tx really deployed this token and gives the true forced `owner`, and the
+ * remaining TokenConfig fields are read from the token's public getters AT
+ * THE DEPLOY BLOCK (historical state = exactly what the constructor set,
+ * even if the owner has since called setters). Receipt logs instead of
+ * decoding `tx.input` as deployToken() because EIP-7702/relayed
+ * smart-account transactions point `tx.to` at a relay contract — decoding
+ * their input fails, and `tx.from` is the relayer, not the token owner
+ * (same pattern as src/lib/contracts/proveDeployment.ts).
  *
  * Fire-and-forget from POST /api/deployments — never blocks the deployment
  * record, and silently no-ops when Etherscan/Alchemy keys aren't configured
@@ -82,19 +88,85 @@ export async function POST(req: NextRequest) {
       transport: http(`https://${alchemySlug}.g.alchemy.com/v2/${alchemyKey}`),
     });
 
-    const tx = await client.getTransaction({ hash: body.txHash as `0x${string}` });
-
-    const decoded = decodeFunctionData({ abi: OSCAR_TOKEN_FACTORY_ABI, data: tx.input });
-    if (decoded.functionName !== "deployToken") {
-      return NextResponse.json({ error: "That transaction wasn't a deployToken call." }, { status: 400 });
+    const receipt = await client.getTransactionReceipt({ hash: body.txHash as `0x${string}` });
+    if (receipt.status !== "success") {
+      return NextResponse.json({ error: "That transaction reverted." }, { status: 400 });
     }
-    // The factory forces token ownership to msg.sender — mirror that so the
-    // constructor args submitted match what was actually deployed on-chain.
-    const cfg = decoded.args[0] as Record<string, unknown>;
-    // Decoded straight off the real transaction, so this always has every
-    // TokenConfig field at runtime — the broad cast above is just to sidestep
-    // decodeFunctionData's overload-union typing across the whole factory ABI.
-    const finalCfg = { ...cfg, owner: tx.from } as Record<string, unknown>;
+
+    const factoryAddress = isMainnetChain ? entry.factoryAddress : entry.testnetFactoryAddress;
+    if (!factoryAddress) {
+      return NextResponse.json(
+        { error: "No oscAr factory is deployed on that chain." },
+        { status: 400 },
+      );
+    }
+    const deployed = parseEventLogs({
+      abi: OSCAR_TOKEN_FACTORY_ABI,
+      eventName: "TokenDeployed",
+      logs: receipt.logs,
+    }).find(
+      (e) =>
+        e.address.toLowerCase() === factoryAddress.toLowerCase() &&
+        e.args.token.toLowerCase() === (body.contractAddress as string).toLowerCase(),
+    );
+    if (!deployed) {
+      return NextResponse.json(
+        { error: "That transaction didn't deploy this token through the oscAr factory." },
+        { status: 400 },
+      );
+    }
+
+    // Rebuild the constructor's TokenConfig from the token's own state at
+    // the deploy block. Field order must match the struct exactly.
+    const tokenRead = {
+      address: body.contractAddress as `0x${string}`,
+      abi: OSCAR_ERC20_ABI,
+      blockNumber: receipt.blockNumber,
+    } as const;
+    const [
+      decimalsValue,
+      initialSupply,
+      mintable,
+      maxSupply,
+      pausable,
+      buyTaxBps,
+      sellTaxBps,
+      taxWallet,
+      maxWallet,
+      maxTx,
+      antibotBlocks,
+      tradingEnabledAtLaunch,
+    ] = await Promise.all([
+      client.readContract({ ...tokenRead, functionName: "decimals" }),
+      client.readContract({ ...tokenRead, functionName: "totalSupply" }),
+      client.readContract({ ...tokenRead, functionName: "mintable" }),
+      client.readContract({ ...tokenRead, functionName: "maxSupply" }),
+      client.readContract({ ...tokenRead, functionName: "pausable" }),
+      client.readContract({ ...tokenRead, functionName: "buyTaxBps" }),
+      client.readContract({ ...tokenRead, functionName: "sellTaxBps" }),
+      client.readContract({ ...tokenRead, functionName: "taxWallet" }),
+      client.readContract({ ...tokenRead, functionName: "maxWallet" }),
+      client.readContract({ ...tokenRead, functionName: "maxTx" }),
+      client.readContract({ ...tokenRead, functionName: "antibotBlocks" }),
+      client.readContract({ ...tokenRead, functionName: "tradingEnabled" }),
+    ]);
+    const finalCfg = {
+      name: deployed.args.name,
+      symbol: deployed.args.symbol,
+      decimalsValue,
+      initialSupply,
+      owner: deployed.args.owner,
+      mintable,
+      maxSupply,
+      pausable,
+      buyTaxBps,
+      sellTaxBps,
+      taxWallet,
+      maxWallet,
+      maxTx,
+      antibotBlocks,
+      tradingEnabledAtLaunch,
+    };
 
     const ctorAbiEntry = OSCAR_ERC20_ABI.find((x) => x.type === "constructor");
     if (!ctorAbiEntry || !("inputs" in ctorAbiEntry)) {
