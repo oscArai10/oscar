@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseConfigured } from "@/lib/supabase/server";
 
 interface PageProps {
-  params: { chain: string; address: string };
+  params: Promise<{ chain: string; address: string }>;
 }
 
 /**
@@ -18,14 +18,15 @@ interface PageProps {
 export default async function TokenPage({ params }: PageProps) {
   if (!isSupabaseConfigured()) notFound();
 
+  const { chain, address } = await params;
   const admin = createAdminClient();
   const { data: deployment } = await admin
     .from("deployments")
     .select(
       "token_name, token_symbol, contract_name, chain, is_mainnet, contract_address, explorer_url, audit_score, created_at",
     )
-    .eq("chain", params.chain)
-    .ilike("contract_address", params.address)
+    .eq("chain", chain)
+    .ilike("contract_address", address)
     .maybeSingle();
 
   if (!deployment) notFound();

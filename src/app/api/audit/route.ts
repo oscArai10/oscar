@@ -111,7 +111,7 @@ async function saveAuditReport(params: {
   if (!isSupabaseConfigured()) return;
 
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();

@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: "skipped" });
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

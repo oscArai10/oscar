@@ -11,9 +11,10 @@ export function isSupabaseConfigured(): boolean {
 
 // Server-side Supabase client bound to the request's cookies. Use in Server
 // Components, Route Handlers, and Server Actions. Reads the user's session
-// from cookies and enforces RLS as that user.
-export function createClient() {
-  const cookieStore = cookies();
+// from cookies and enforces RLS as that user. Async since Next 15 made
+// cookies() a Promise.
+export async function createClient() {
+  const cookieStore = await cookies();
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,

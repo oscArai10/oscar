@@ -21,7 +21,7 @@ export const getCurrentUserProfile = cache(
   async (): Promise<CurrentUserProfile | null> => {
     if (!isSupabaseConfigured()) return null;
 
-    const supabase = createClient();
+    const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();

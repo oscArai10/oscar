@@ -31,7 +31,7 @@ const EMPTY_OVERVIEW: CoreOverview = {
  */
 export async function getCoreOverview(): Promise<CoreOverview> {
   if (!isSupabaseConfigured()) return EMPTY_OVERVIEW;
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const [
     usersRes,
@@ -120,7 +120,7 @@ export interface CoreUserRow {
 
 export async function getCoreUsers(): Promise<CoreUserRow[]> {
   if (!isSupabaseConfigured()) return [];
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const [profilesRes, deploymentsRes] = await Promise.all([
     supabase

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAccount, useChainId, useSignMessage } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
@@ -242,13 +243,13 @@ export function LoginClient({ redirectTo = "/dashboard" }: { redirectTo?: string
           </p>
         )}
 
-        <a
+        <Link
           href="/"
           className="mt-6 flex items-center justify-center gap-1.5 text-xs text-text-muted hover:text-text-secondary"
         >
           <ArrowLeft size={12} />
           Back to home
-        </a>
+        </Link>
       </div>
     </main>
   );

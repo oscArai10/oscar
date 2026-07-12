@@ -26,7 +26,7 @@ export async function getMainnetDeployLimitStatus(
     return { tier, usedThisMonth: 0, limit: FREE_MAINNET_DEPLOYS_PER_MONTH, reachedLimit: false };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

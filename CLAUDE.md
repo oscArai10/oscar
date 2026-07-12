@@ -20,7 +20,8 @@ The permanent AI brain/orb graphic for oscAr is `public/oscar-brain.png`.
 
 Last updated: 2026-07-10. Build order is being followed step by step; the
 user approves each step before the next. Tech stack, scope, and design
-system are per the v1 master prompt (Next.js 14 + TS + Tailwind, PWA, 10
+system are per the v1 master prompt (Next.js 16 as of step 21 — originally
+14 + TS + Tailwind, PWA, 10
 EVM chains, non-custodial, Claude AI primary / GPT-4o failover, branded
 "oscAr AI" publicly / "oscAr PULSE" as the app / "oscAr CORE" admin).
 
@@ -719,6 +720,50 @@ Open items before Paddle can process a real payment:
     actual Etherscan submission (route exits "skipped" until
     `ETHERSCAN_API_KEY` is set — unchanged behavior). Type-check +
     production build clean.
+
+21. **Next.js 14 → 16 upgrade** (2026-07-12, branch `upgrade/next-16`,
+    NOT yet merged to master) — built & smoke-tested. Clears the npm audit
+    HIGHs flagged in step 16. next 16.2.10 + react/react-dom 19 +
+    @types 19 + eslint 9 + eslint-config-next 16. wagmi/RainbowKit
+    deliberately NOT bumped to new majors: RainbowKit's latest (2.2.11,
+    already installed) requires wagmi ^2.9.0 — wagmi 3 exists but nothing
+    supports it yet; both work fine on React 19. next-pwa 10.2.9 already
+    supported next >=14. Breaking changes handled:
+    - Async request APIs: `createClient()` in `src/lib/supabase/server.ts`
+      is now async (awaits `cookies()`) — all ~14 server call sites await
+      it; siwe route awaits `cookies()`; `params`/`searchParams` are now
+      Promises in login, token-factory, and /token/[chain]/[address] pages.
+    - `src/middleware.ts` → `src/proxy.ts` with exported `proxy()` (Next 16
+      renamed the convention; middleware.ts is deprecated). Same matcher,
+      same behavior — gating re-verified live.
+    - **Turbopack is Next 16's default bundler, but next-pwa is a webpack
+      plugin with no Turbopack support — dev/build scripts explicitly pass
+      `--webpack` (the supported opt-out).** Turbopack builds are off the
+      table until the PWA layer is replaced with something
+      Turbopack-compatible; revisit if @ducanh2912/next-pwa ships support.
+    - `next lint` removed: `.eslintrc.json` → flat `eslint.config.mjs`
+      (native eslint-config-next flat exports), lint script = `eslint src`.
+      Three new-rule errors fixed properly: `<a href="/">` → `<Link>` in
+      LoginClient; ContractPipelinePanel's tab-reset effect → React's
+      reset-state-during-render pattern; DeploySection's `persisted` state
+      guard → a ref (never rendered).
+    - tsconfig.json auto-updated by Next (react-jsx, dev types include).
+    - **npm audit: 0 high (was 6 on master pre-step-18, 2 after the next
+      bump), 11 moderate remain.** The 2 stubborn highs were transitive
+      pins fixed via package.json `overrides`: serialize-javascript ^7.0.7
+      (build-time only, under workbox/next-pwa) and ws ^8.21.0 scoped to
+      `ws@^8` (WalletConnect's nested viem copies; the ws@7 consumer
+      keeps 7.x untouched). The 11 moderates are genuinely unfixable
+      without breakage: postcss pinned inside next itself, uuid inside
+      @metamask/sdk (needs wagmi 3).
+    Verified: type-check, `eslint src`, and production build all clean;
+    live smoke test — proxy gating (unauthed /dashboard → /login), landing
+    page, login → dashboard as a temp user (deleted after) under React 19,
+    `?prompt=` prefill (async searchParams), and the public token page
+    (async params) all render with no new console errors. NOT re-verified
+    on 16: wallet connect/deploy flows (no wallet in this environment) and
+    the PWA service worker on a real device — regression-test those before
+    merging to master.
 
 ### Next steps (build order not yet done)
 

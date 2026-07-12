@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import {
   ShieldAlert,
@@ -55,11 +55,15 @@ export function ContractPipelinePanel({
   const [copied, setCopied] = useState(false);
   const contract = phase.kind === "done" ? phase.contract : null;
 
-  // A fresh generation always lands on the Plain English tab.
-  useEffect(() => {
+  // A fresh generation always lands on the Plain English tab. State is
+  // adjusted during render (React's documented reset-on-prop-change pattern)
+  // rather than in an effect, which would trigger a cascading re-render.
+  const [prevContract, setPrevContract] = useState(contract);
+  if (contract !== prevContract) {
+    setPrevContract(contract);
     setTab("summary");
     setCopied(false);
-  }, [contract]);
+  }
 
   async function copyCode() {
     if (!contract) return;

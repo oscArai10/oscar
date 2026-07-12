@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing message or signature." }, { status: 400 });
   }
 
-  const expectedNonce = cookies().get(NONCE_COOKIE)?.value;
+  const expectedNonce = (await cookies()).get(NONCE_COOKIE)?.value;
   if (!expectedNonce) {
     return NextResponse.json(
       { error: "Your sign-in request expired. Please try again." },

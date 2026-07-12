@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAccount, useChainId, useSwitchChain } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { formatEther } from "viem";
@@ -58,7 +58,9 @@ export function DeploySection({
   );
   const { deploy, isSigning, isConfirming, isConfirmed, deployedTokenAddress, hash, error } =
     useDeployToken();
-  const [persisted, setPersisted] = useState(false);
+  // Guard so the deployment is only persisted once — a ref, not state, since
+  // it's never rendered and flipping it shouldn't re-render anything.
+  const persistedRef = useRef(false);
 
   const wrongNetwork = isConnected && !!selected && currentChainId !== selected.chainId;
   const blockedByGate = !!selected?.isMainnet && !canDeployMainnet;
@@ -84,8 +86,8 @@ export function DeploySection({
   // Persist the confirmed deploy to the dashboard's deployments table —
   // best-effort; the on-chain deploy has already succeeded regardless.
   useEffect(() => {
-    if (!isConfirmed || persisted || !deployedTokenAddress || !selected || !hash) return;
-    setPersisted(true);
+    if (!isConfirmed || persistedRef.current || !deployedTokenAddress || !selected || !hash) return;
+    persistedRef.current = true;
     fetch("/api/deployments", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -104,7 +106,6 @@ export function DeploySection({
     });
   }, [
     isConfirmed,
-    persisted,
     deployedTokenAddress,
     selected,
     hash,

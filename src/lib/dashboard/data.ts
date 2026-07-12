@@ -59,7 +59,7 @@ const EMPTY_DATA: DashboardData = {
 export async function getDashboardData(): Promise<DashboardData> {
   if (!isSupabaseConfigured()) return EMPTY_DATA;
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

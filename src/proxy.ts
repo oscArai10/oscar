@@ -8,7 +8,9 @@ import {
   timingSafeEqualStr,
 } from "@/lib/core/security";
 
-export async function middleware(request: NextRequest) {
+// Next 16 renamed the "middleware" convention to "proxy" — same behavior,
+// runs before matched routes. (This file was src/middleware.ts pre-upgrade.)
+export async function proxy(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 

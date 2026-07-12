@@ -5,13 +5,13 @@ import { LoginClient } from "@/components/auth/LoginClient";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: { redirect?: string };
+  searchParams: Promise<{ redirect?: string }>;
 }) {
-  const redirectTo = searchParams.redirect || "/dashboard";
+  const redirectTo = (await searchParams).redirect || "/dashboard";
 
   // Before Supabase keys are pasted, just show the form.
   if (isSupabaseConfigured()) {
-    const supabase = createClient();
+    const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();

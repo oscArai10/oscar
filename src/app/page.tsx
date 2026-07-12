@@ -9,7 +9,7 @@ import { LandingFooter } from "@/components/landing/LandingFooter";
 export default async function Home() {
   let isAuthed = false;
   if (isSupabaseConfigured()) {
-    const supabase = createClient();
+    const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();

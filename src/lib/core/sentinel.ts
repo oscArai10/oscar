@@ -41,7 +41,7 @@ async function checkAlchemy(): Promise<HealthState> {
 async function checkSupabase(): Promise<HealthState> {
   if (!isSupabaseConfigured()) return "not_configured";
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { error } = await supabase.from("profiles").select("id", { head: true, count: "exact" });
     return error ? "unreachable" : "healthy";
   } catch {

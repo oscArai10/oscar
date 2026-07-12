@@ -35,7 +35,7 @@ const EMPTY_STATS: BadgeStats = {
 async function getBadgeStats(): Promise<BadgeStats> {
   if (!isSupabaseConfigured()) return EMPTY_STATS;
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
