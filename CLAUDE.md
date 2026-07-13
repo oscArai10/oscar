@@ -105,12 +105,12 @@ EVM chains, non-custodial, Claude AI primary / GPT-4o failover, branded
    applied to the owner setter but not to construction. Both fixed with
    new regression tests (23/23 passing) — see the contract layer entry
    above.
-   Open item: **the Slither service itself isn't deployed anywhere yet.**
-   Owner needs to deploy `services/slither/` to Railway or Fly.io (see
-   its README) and paste `SLITHER_SERVICE_URL` /
-   `SLITHER_SERVICE_API_KEY` into `.env.local`. Until then the audit
-   button correctly shows "unavailable, mainnet blocked" (verified live
-   in the browser).
+   UPDATE (2026-07-14, step 22): the owner decided to skip deploying the
+   Slither service entirely — it is now OPTIONAL. When its env vars are
+   unset, audits run as AI review only (clearly flagged); when configured
+   but unreachable, the gate still fails closed. Deploying
+   `services/slither/` later re-enables full static analysis with no code
+   changes.
 8. **Dashboard wired to real Supabase data** — built and live-tested.
    `supabase/schema.sql` adds `deployments` and `audit_reports` tables
    (same select-own-or-owner + insert-own RLS pattern as `profiles`).
@@ -771,6 +771,30 @@ Open items before Paddle can process a real payment:
     on 16: wallet connect/deploy flows (no wallet in this environment) and
     the PWA service worker on a real device — regression-test those before
     merging to master.
+
+22. **Slither made optional — AI-only audits** (2026-07-14, branch
+    `audit/slither-optional`) — built & live-tested. Owner decision:
+    Railway deploy skipped entirely, so the audit gate no longer fails
+    closed on an UNCONFIGURED Slither. `runAudit` now runs the AI reviewer
+    with `staticFindings: null` when `SLITHER_SERVICE_URL`/API key are
+    unset; the prompt tells the model it is the sole reviewer (and never
+    to attribute findings to a tool that didn't run). The completed result
+    carries `staticAnalysisRan: boolean` through the API response and
+    pipeline hook to an amber notice in the audit UI ("scores come from AI
+    review only") — never hidden, since scores feed the mainnet gate,
+    badges, and the public token page. A Slither that IS configured but
+    unreachable still fails CLOSED (outage ≠ opt-out). SENTINEL's Slither
+    card now reads "Not configured (optional) — audits run as AI review
+    only". NOT persisted to the audit_reports table (no schema change) —
+    the DB row doesn't record whether static analysis ran; acceptable for
+    now, revisit if it matters for the public token page.
+    Verified live with Slither genuinely unset (temp user, deleted after,
+    cascade confirmed): real generate → real audit → completed 98/100
+    with the amber AI-only notice rendered, zero errors; SENTINEL showed
+    the new "Not Configured (optional)" wording as a promoted owner.
+    One transient environment hiccup during testing (dev-server DNS
+    failure hitting api.openai.com → honest 503) resolved on retry — not
+    related to the change. Type-check, lint, production build clean.
 
 ### Next steps (build order not yet done)
 

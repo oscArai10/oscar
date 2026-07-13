@@ -10,7 +10,7 @@ const WEIGHTS = { security: 0.5, gas: 0.25, quality: 0.25 };
 export const MAINNET_GATE_SCORE = 80;
 
 export type AuditResult =
-  | { status: "unavailable" } // Slither service down/not configured — fail closed, block mainnet
+  | { status: "unavailable" } // Slither configured but down — fail closed, block mainnet
   | { status: "compile_error"; message: string }
   | {
       status: "completed";
@@ -18,13 +18,20 @@ export type AuditResult =
       overallScore: number;
       passesGate: boolean;
       staticFindingsCount: number;
+      /** false = Slither isn't configured, so this audit is AI review only.
+       *  Surfaced honestly in the API response and UI — never hidden. */
+      staticAnalysisRan: boolean;
     };
 
 /**
  * Runs the full audit: Slither static analysis first (ground truth), then
- * oscAr AI translates + scores. Static-analysis unavailability fails CLOSED
- * (blocks mainnet) rather than open — this is a security gate, not a
- * best-effort feature.
+ * oscAr AI translates + scores.
+ *
+ * Slither is OPTIONAL (owner decision, 2026-07-14): when its env vars are
+ * unset the audit runs as AI review only, clearly flagged via
+ * staticAnalysisRan=false. A Slither that IS configured but unreachable
+ * still fails CLOSED (blocks mainnet) — that's an outage of a configured
+ * security layer, not an opt-out.
  */
 export async function runAudit(
   solidityCode: string,
@@ -32,14 +39,15 @@ export async function runAudit(
 ): Promise<AuditResult> {
   const slither = await analyzeContract(solidityCode, contractName);
 
-  if (slither.status === "not_configured" || slither.status === "unreachable") {
+  if (slither.status === "unreachable") {
     return { status: "unavailable" };
   }
   if (slither.status === "compile_error") {
     return { status: "compile_error", message: slither.message };
   }
 
-  const findings: SlitherFinding[] = slither.findings;
+  const staticAnalysisRan = slither.status === "ok";
+  const findings: SlitherFinding[] | null = staticAnalysisRan ? slither.findings : null;
 
   const review = await callOscarAI<AuditReview>({
     system: AUDIT_REVIEWER_SYSTEM,
@@ -64,6 +72,7 @@ export async function runAudit(
     review,
     overallScore,
     passesGate: overallScore >= MAINNET_GATE_SCORE,
-    staticFindingsCount: findings.length,
+    staticFindingsCount: findings?.length ?? 0,
+    staticAnalysisRan,
   };
 }

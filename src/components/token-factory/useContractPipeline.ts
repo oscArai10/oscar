@@ -48,6 +48,8 @@ export type AuditPhase =
       review: AuditReview;
       overallScore: number;
       passesGate: boolean;
+      /** false = Slither not configured; the audit was AI review only. */
+      staticAnalysisRan: boolean;
     };
 
 /**
@@ -117,6 +119,7 @@ export function useContractPipeline() {
           review: data.review,
           overallScore: data.overallScore,
           passesGate: data.passesGate,
+          staticAnalysisRan: data.staticAnalysisRan !== false,
         });
       }
     } catch {

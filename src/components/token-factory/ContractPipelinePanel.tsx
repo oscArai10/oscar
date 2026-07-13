@@ -289,6 +289,16 @@ export function ContractPipelinePanel({
                   />
                 </div>
 
+                {!audit.staticAnalysisRan && (
+                  <div className="flex items-start gap-3 rounded-xl border border-status-gold/30 bg-status-gold/5 p-4">
+                    <ShieldAlert size={18} className="mt-0.5 shrink-0 text-status-gold" />
+                    <p className="text-sm text-text-secondary">
+                      Static analysis (Slither) didn&apos;t run for this audit — these scores
+                      come from AI review only.
+                    </p>
+                  </div>
+                )}
+
                 <p className="text-sm text-text-secondary">{audit.review.summary}</p>
 
                 {audit.review.findings.length > 0 && (

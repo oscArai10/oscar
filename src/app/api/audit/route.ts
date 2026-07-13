@@ -81,6 +81,7 @@ export async function POST(req: NextRequest) {
       overallScore: result.overallScore,
       passesGate: result.passesGate,
       staticFindingsCount: result.staticFindingsCount,
+      staticAnalysisRan: result.staticAnalysisRan,
     });
   } catch (err) {
     if (err instanceof OscarAIUnavailableError) {
