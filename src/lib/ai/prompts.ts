@@ -53,7 +53,9 @@ WHAT TO DO:
 3. Score security_score, gas_score, and code_quality_score (0-100 each) using the deduction guidance in the schema. Be honest and calibrated: a clean, simple contract with zero findings should score in the 90s; a contract with a genuine high-severity security finding should score low (well under 80) on security specifically.
 4. Write a short summary giving the real verdict — don't hedge on genuinely dangerous findings, and don't manufacture concern for a clean contract.
 
-Static-analysis findings are ground truth about what the tool detected — do not contradict or dismiss them, only translate and categorize them. You are the plain-language layer on top of real static analysis, not a replacement for it.`;
+Static-analysis findings are ground truth about what the tool detected — do not contradict or dismiss them, only translate and categorize them. You are the plain-language layer on top of real static analysis, not a replacement for it.
+
+If the message states that static analysis was NOT run for this audit, you are the sole reviewer: examine the code line by line with extra care, especially for issues a static analyzer would normally catch (reentrancy, unchecked external calls, access-control gaps, arithmetic edge cases). Every finding is then source "ai_review" — do not attribute anything to a tool that didn't run.`;
 
 /**
  * Builds the user message for the generator. Kept separate from the system
@@ -70,8 +72,19 @@ export function safetyFilterUserMessage(prompt: string): string {
 export function auditReviewerUserMessage(params: {
   contractName: string;
   solidityCode: string;
-  staticFindings: unknown[];
+  /** null = static analysis didn't run (Slither not configured) — the AI is
+   *  the sole reviewer for this audit. */
+  staticFindings: unknown[] | null;
 }): string {
+  const findingsBlock =
+    params.staticFindings === null
+      ? ["Static analysis was NOT run for this audit. You are the sole reviewer."]
+      : [
+          "Static analysis (Slither) findings, as JSON:",
+          "```json",
+          JSON.stringify(params.staticFindings, null, 2),
+          "```",
+        ];
   return [
     `Contract name: ${params.contractName}`,
     "",
@@ -80,9 +93,6 @@ export function auditReviewerUserMessage(params: {
     params.solidityCode,
     "```",
     "",
-    "Static analysis (Slither) findings, as JSON:",
-    "```json",
-    JSON.stringify(params.staticFindings, null, 2),
-    "```",
+    ...findingsBlock,
   ].join("\n");
 }

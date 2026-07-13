@@ -179,10 +179,10 @@ export async function getSentinelChecks(): Promise<SentinelCheck[]> {
       state: slither,
       detail:
         slither === "not_configured"
-          ? "SLITHER_SERVICE_URL not set — mainnet deploys are blocked (audit gate fails closed)."
+          ? "Not configured (optional) — audits run as AI review only, flagged as such in results."
           : slither === "unreachable"
-            ? "Configured but not responding — mainnet deploys are blocked (audit gate fails closed)."
-            : "Reachable — real audits are running.",
+            ? "Configured but not responding — audits fail closed until it's reachable again."
+            : "Reachable — audits include real static analysis.",
     },
     {
       id: "supabase",
