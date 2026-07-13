@@ -7,7 +7,7 @@ import crypto from "crypto";
 // webhook can do anything real. Every function here fails gracefully rather
 // than throwing when unconfigured, matching the Slither/Alchemy pattern.
 
-function paddleApiBase(): string {
+export function paddleApiBase(): string {
   return process.env.PADDLE_ENVIRONMENT === "production"
     ? "https://api.paddle.com"
     : "https://sandbox-api.paddle.com";
