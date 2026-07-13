@@ -856,10 +856,10 @@ Deferred / later:
 The repo lives at https://github.com/oscArai10/oscar (remote `origin`,
 default branch `main`). All work goes through pull requests now — do NOT
 commit directly to `main`. Branch from `main`, commit there, push the
-branch, and give the user the PR link
-(`https://github.com/oscArai10/oscar/pull/new/<branch>`); the user opens
-and merges PRs on GitHub (`gh` CLI is not installed). After a merge:
-`git pull` on `main`, delete the merged branch.
+branch, and open a PR with `gh pr create` (GitHub CLI is installed and
+authenticated as oscArai10 since 2026-07-13). The user reviews and
+merges on GitHub — do not merge a PR without the user saying so. After
+a merge: `git pull` on `main`, delete the merged branch.
 
 ### Dev notes
 
