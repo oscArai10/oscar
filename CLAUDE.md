@@ -851,6 +851,16 @@ Deferred / later:
 - zkSync factory deploy (needs zksolc, deferred separately from the 9
   standard-EVM chains).
 
+### Git workflow — PRs only (as of 2026-07-13)
+
+The repo lives at https://github.com/oscArai10/oscar (remote `origin`,
+default branch `main`). All work goes through pull requests now — do NOT
+commit directly to `main`. Branch from `main`, commit there, push the
+branch, and give the user the PR link
+(`https://github.com/oscArai10/oscar/pull/new/<branch>`); the user opens
+and merges PRs on GitHub (`gh` CLI is not installed). After a merge:
+`git pull` on `main`, delete the merged branch.
+
 ### Dev notes
 
 - Run the dev server via the Preview tool using `.claude/launch.json`
