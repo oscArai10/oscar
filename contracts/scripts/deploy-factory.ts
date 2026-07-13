@@ -32,8 +32,39 @@ async function main() {
   const address = await factory.getAddress();
 
   console.log(`✅ Factory deployed: ${address}`);
-  console.log(`\nRecord this address in the app's chain config (factoryAddress).`);
-  console.log(`Verify on the explorer with:`);
+
+  // Print the exact edit for src/lib/chains/chains.ts — with 18 networks the
+  // "which key, which field" mapping is the easy thing to get wrong when
+  // deploying across all chains in one sitting.
+  const CHAIN_CONFIG_TARGET: Record<string, { key: string; field: string }> = {
+    ethereum: { key: "ethereum", field: "factoryAddress" },
+    base: { key: "base", field: "factoryAddress" },
+    bnb: { key: "bnb", field: "factoryAddress" },
+    polygon: { key: "polygon", field: "factoryAddress" },
+    arbitrum: { key: "arbitrum", field: "factoryAddress" },
+    optimism: { key: "optimism", field: "factoryAddress" },
+    avalanche: { key: "avalanche", field: "factoryAddress" },
+    linea: { key: "linea", field: "factoryAddress" },
+    scroll: { key: "scroll", field: "factoryAddress" },
+    sepolia: { key: "ethereum", field: "testnetFactoryAddress" },
+    baseSepolia: { key: "base", field: "testnetFactoryAddress" },
+    bnbTestnet: { key: "bnb", field: "testnetFactoryAddress" },
+    polygonAmoy: { key: "polygon", field: "testnetFactoryAddress" },
+    arbitrumSepolia: { key: "arbitrum", field: "testnetFactoryAddress" },
+    optimismSepolia: { key: "optimism", field: "testnetFactoryAddress" },
+    avalancheFuji: { key: "avalanche", field: "testnetFactoryAddress" },
+    lineaSepolia: { key: "linea", field: "testnetFactoryAddress" },
+    scrollSepolia: { key: "scroll", field: "testnetFactoryAddress" },
+  };
+  const target = CHAIN_CONFIG_TARGET[network.name];
+  if (target) {
+    console.log(`\nIn src/lib/chains/chains.ts, set (inside "${target.key}"):`);
+    console.log(`  ${target.field}: "${address}",`);
+  } else {
+    console.log(`\nRecord this address in the app's chain config (factoryAddress).`);
+  }
+
+  console.log(`\nVerify on the explorer with:`);
   console.log(
     `  npx hardhat verify --network ${network.name} ${address} ${fee} ${feeWallet} ${deployer.address}\n`,
   );
