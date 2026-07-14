@@ -84,16 +84,16 @@ async function checkPaddle(): Promise<{ state: HealthState; detail: string }> {
     if (!res.ok) {
       return { state: "unreachable", detail: "Configured but the last API call failed." };
     }
-    const checkoutReady =
-      !!process.env.PADDLE_WEBHOOK_SECRET &&
-      !!process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN &&
-      !!process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_PRO;
-    return checkoutReady
+    const missing = [
+      !process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN && "client token",
+      !process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_PRO && "price id",
+      !process.env.PADDLE_WEBHOOK_SECRET && "webhook secret",
+    ].filter(Boolean);
+    return missing.length === 0
       ? { state: "healthy", detail: "Key accepted and checkout vars present — billing is ready." }
       : {
           state: "degraded",
-          detail:
-            "API key works but checkout vars are missing (client token / price id / webhook secret).",
+          detail: `API key works, but still missing: ${missing.join(", ")}.`,
         };
   } catch {
     return { state: "unreachable", detail: "Configured but the last API call failed." };
