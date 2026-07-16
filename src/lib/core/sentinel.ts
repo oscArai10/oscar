@@ -58,11 +58,40 @@ async function checkEtherscan(): Promise<HealthState> {
   }
 }
 
+/** Confirms the configured Pro price still resolves AND is active. Returns a
+ *  problem state, or null when the price is fine. A price id that's merely
+ *  *present* in the env proves nothing: archiving a product in Paddle
+ *  silently archives its prices, which would fail at checkout while every
+ *  env var still looks set. */
+async function checkPaddlePrice(): Promise<{ state: HealthState; detail: string } | null> {
+  const priceId = process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_PRO;
+  const res = await fetch(`${paddleApiBase()}/prices/${priceId}`, {
+    headers: { Authorization: `Bearer ${process.env.PADDLE_API_KEY}` },
+    signal: AbortSignal.timeout(RPC_TIMEOUT_MS),
+  });
+  if (res.status === 404) {
+    return {
+      state: "degraded",
+      detail: `Pro price ${priceId} doesn't exist in this Paddle account — checkout would fail.`,
+    };
+  }
+  // A transient lookup failure shouldn't invent a problem with the price.
+  if (!res.ok) return null;
+  const status = (await res.json())?.data?.status;
+  if (status !== "active") {
+    return {
+      state: "degraded",
+      detail: `Pro price is ${status}, not active — checkout would fail. Point NEXT_PUBLIC_PADDLE_PRICE_ID_PRO at an active price.`,
+    };
+  }
+  return null;
+}
+
 /** Live Paddle API call (sandbox/production per PADDLE_ENVIRONMENT) — GET
  *  /event-types is the cheapest authenticated endpoint; 401/403 means the
  *  key itself was rejected. A working server key with missing client-side
  *  checkout vars is reported degraded, since checkout still can't run.
- *  Returns its own detail: the two degraded causes need different advice. */
+ *  Returns its own detail: each degraded cause needs different advice. */
 async function checkPaddle(): Promise<{ state: HealthState; detail: string }> {
   if (!process.env.PADDLE_API_KEY) {
     return {
@@ -89,12 +118,20 @@ async function checkPaddle(): Promise<{ state: HealthState; detail: string }> {
       !process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_PRO && "price id",
       !process.env.PADDLE_WEBHOOK_SECRET && "webhook secret",
     ].filter(Boolean);
-    return missing.length === 0
-      ? { state: "healthy", detail: "Key accepted and checkout vars present — billing is ready." }
-      : {
-          state: "degraded",
-          detail: `API key works, but still missing: ${missing.join(", ")}.`,
-        };
+    if (missing.length > 0) {
+      return {
+        state: "degraded",
+        detail: `API key works, but still missing: ${missing.join(", ")}.`,
+      };
+    }
+
+    const priceProblem = await checkPaddlePrice();
+    if (priceProblem) return priceProblem;
+
+    return {
+      state: "healthy",
+      detail: "Key accepted, checkout vars present, Pro price active — billing is ready.",
+    };
   } catch {
     return { state: "unreachable", detail: "Configured but the last API call failed." };
   }
