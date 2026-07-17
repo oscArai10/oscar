@@ -8,6 +8,14 @@ export function walletEmail(address: string): string {
   return `${address.toLowerCase()}@${WALLET_EMAIL_DOMAIN}`;
 }
 
+// MUST stay printable ASCII. EIP-4361's ABNF grammar restricts `statement` to
+// ASCII and siwe v3 enforces it strictly, so a single non-ASCII character (an
+// em-dash, a curly quote) makes prepareMessage() throw
+// "invalid message: max line number was 6" and breaks wallet sign-in entirely.
+// The em-dash used everywhere else in this project is invalid here.
+const SIWE_STATEMENT =
+  "Sign in to oscAr. This is a signature request only, and it costs no gas and never moves funds.";
+
 /** Builds the SIWE message a user signs. Isomorphic (used on the client). */
 export function buildSiweMessage(params: {
   address: string;
@@ -19,8 +27,7 @@ export function buildSiweMessage(params: {
   return new SiweMessage({
     domain: params.domain,
     address: params.address,
-    statement:
-      "Sign in to oscAr. This is a signature request only — it costs no gas and never moves funds.",
+    statement: SIWE_STATEMENT,
     uri: params.uri,
     version: "1",
     chainId: params.chainId,

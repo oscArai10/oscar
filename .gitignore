@@ -50,3 +50,6 @@ contracts/.env
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Vercel CLI link data (project/org ids, OIDC token)
+.vercel
