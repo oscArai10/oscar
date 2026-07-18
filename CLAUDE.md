@@ -18,14 +18,63 @@ The permanent AI brain/orb graphic for oscAr is `public/oscar-brain.png`.
 
 ## Project status — resume here
 
-Last updated: 2026-07-10. Build order is being followed step by step; the
-user approves each step before the next. Tech stack, scope, and design
-system are per the v1 master prompt (Next.js 16 as of step 21 — originally
-14 + TS + Tailwind, PWA, 10
+Last updated: 2026-07-18. The original build order is COMPLETE; the app is
+built, deployed live, and taking real payments. Work now goes through PRs
+(see "Git workflow" below) rather than the step-by-step approval flow.
+Tech stack, scope, and design system are per the v1 master prompt
+(Next.js 16 as of step 21 — originally 14 + TS + Tailwind, PWA, 10
 EVM chains, non-custodial, Claude AI primary / GPT-4o failover, branded
 "oscAr AI" publicly / "oscAr PULSE" as the app / "oscAr CORE" admin).
 
-### Built so far (all committed on `master`)
+### LIVE STATUS (2026-07-18) — read this first
+
+Production is deployed at **https://oscar-jade.vercel.app** (Vercel project
+`oscar`, team `osc-arai`/`oscArai10`; `vercel` CLI is linked and
+authenticated locally). `main` and prod are in sync; deploy with
+`vercel --prod --yes`. Env vars live in Vercel (production + preview) AND
+local `.env.local`; when adding a var, push it to both with
+`vercel env add <NAME> <production|preview> --force` (pipe the value via
+stdin, never print it). `NEXT_PUBLIC_APP_URL` in prod is the vercel URL,
+NOT localhost.
+
+What's LIVE and verified in production:
+- Email + wallet sign-in both work (wallet was broken by a non-ASCII
+  em-dash in the SIWE statement — fixed, PR #8; EIP-4361 requires printable
+  ASCII in that field).
+- AI generation + audit (audit is AI-only; Slither stays optional/unset).
+- Rate limiting on Upstash (REST DB `guiding-llama-113393`), verified live.
+  The limiter falls back to per-instance in-memory if Upstash is
+  unreachable rather than failing open (PR #7).
+- **Paddle payments are LIVE.** Real checkout overlay opens on
+  `/dashboard/settings` → "Upgrade to Pro" (there is NO /checkout route —
+  it's a Paddle.js overlay). Domain approved, onboarding enabled, default
+  payment link set to `https://oscar-jade.vercel.app/pricing`, webhook →
+  `https://oscar-jade.vercel.app/api/webhooks/paddle`. $19/mo shows as
+  ~₹1,836 inc. GST (Paddle localizes for the India-based MoR). The Pro
+  price is `pri_01kxn1tqvz5ex0q3rg3mgynh92` (active). NOT yet proven: a
+  real purchase → webhook → tier-upgrade-to-Pro (needs an actual card /
+  Paddle test payment).
+- All API keys were ROTATED 2026-07-18 (Anthropic, OpenAI, Paddle,
+  Etherscan, Upstash) and the old ones revoked. Supabase keys + Paddle
+  webhook secret were NOT in that rotation (unchanged).
+
+THE ONE REMAINING HARD BLOCKER: **0 of 10 mainnet factories are
+deployed** (only Base Sepolia testnet exists). The core promise — "deploy
+on 10+ blockchains" — cannot do a single real mainnet deploy until the
+owner funds a FRESH offline wallet (never the testnet key `0x8404…3d31`,
+which was pasted in chat), runs `contracts/scripts/deploy-factory.ts` per
+chain, and records each address in `src/lib/chains/chains.ts`. The deploy
+script now prints the exact chains.ts key/field to set for each network.
+
+Owner to-dos that are NOT code: OpenAI account quota (key valid, GPT-4o
+failover success-path still unproven), delete the old Upstash DB
+`becoming-anemone-70829`, swap the personal Gmail off the 4 legal pages,
+finalize real pricing (still the $19 placeholder), and get the legal
+pages lawyer-reviewed.
+
+### Built so far (all on `main`; the default branch was renamed from
+`master` to `main` when the repo went to GitHub — older entries below say
+"master" but mean the same history)
 
 1. **Scaffold** — Next.js 14 + TS + Tailwind, PWA (next-pwa: manifest,
    service worker, icons generated from the cube logo), locked color
@@ -796,21 +845,25 @@ Open items before Paddle can process a real payment:
     failure hitting api.openai.com → honest 503) resolved on retry — not
     related to the change. Type-check, lint, production build clean.
 
-### Next steps (build order not yet done)
+### Next steps
 
-**PAUSED HERE (2026-07-07) — security hardening pass (step 16) built &
-verified. This was the last item in the original build order.** Real
-open items remain (see step 16's "not fixed" notes, `task_6f7a3511`
-EIP-7702 fix, `task_b8920eea` CORE extra security layers, the deferred
-Next.js major-version upgrade, and every "owner action required" item
-scattered through this file — Slither service deploy, Alchemy/Etherscan
-keys, real Paddle account, factory deploys on the other 9 chains) but
-there is no more queued net-new feature work. Confirm with the user
-what's next — likely picking up one of those open items, or a genuinely
-new feature not yet discussed. (Embeddable public audit-score badges,
-CORE's "user management" / SENTINEL's "abuse monitoring" variants, and
-real Paddle pricing were all considered/deferred — see their respective
-steps above.)**
+**The build order is done and the app is LIVE in production (see "LIVE
+STATUS" near the top).** Steps 16–22 (hardening, deployment-proof,
+EIP-7702, CORE security, Next 16, Slither-optional) all shipped, plus the
+post-build launch work: Vercel deploy, SIWE fix, rate-limit hardening,
+SENTINEL setup checks, pricing/legal pages, Paddle go-live, and a full
+key rotation — all via PRs #1–#9 on `main`.
+
+The single hard blocker to a launchable product is **mainnet factory
+deploys (0/10)** — an owner action (fresh wallet + gas), detailed in LIVE
+STATUS above. Everything else still open is owner ops/business, not code —
+no net-new code work is queued. When the owner returns with mainnet
+deploy output, PR the addresses into `src/lib/chains/chains.ts`.
+
+Considered/deferred (not built): embeddable public audit-score badges,
+CORE "user management" + SENTINEL "abuse monitoring" variants, 2FA +
+login history, zkSync factory (needs zksolc). The Slither microservice is
+intentionally left undeployed (audits run AI-only).
 
 Context from the deploy milestone earlier the same day:
 
