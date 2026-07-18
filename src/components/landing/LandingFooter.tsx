@@ -25,7 +25,7 @@ export function LandingFooter({ isAuthed }: { isAuthed: boolean }) {
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-8 sm:gap-16">
+        <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 sm:gap-16">
           <div>
             <h3 className="font-heading text-xs font-bold uppercase tracking-wide text-accent-cyan-blue">
               Product
@@ -42,8 +42,35 @@ export function LandingFooter({ isAuthed }: { isAuthed: boolean }) {
                 </Link>
               </li>
               <li>
+                <Link href="/pricing" className="hover:text-accent-cyan">
+                  Pricing
+                </Link>
+              </li>
+              <li>
                 <Link href="/dashboard" className="hover:text-accent-cyan">
                   Dashboard
+                </Link>
+              </li>
+            </ul>
+          </div>
+          <div>
+            <h3 className="font-heading text-xs font-bold uppercase tracking-wide text-accent-cyan-blue">
+              Legal
+            </h3>
+            <ul className="mt-3 flex flex-col gap-2 text-sm text-text-secondary">
+              <li>
+                <Link href="/terms" className="hover:text-accent-cyan">
+                  Terms of Service
+                </Link>
+              </li>
+              <li>
+                <Link href="/privacy" className="hover:text-accent-cyan">
+                  Privacy Policy
+                </Link>
+              </li>
+              <li>
+                <Link href="/refunds" className="hover:text-accent-cyan">
+                  Refund Policy
                 </Link>
               </li>
             </ul>
